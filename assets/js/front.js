@@ -42,7 +42,7 @@
 	}
 
 	function Theme(app, theme) {
-		var state = { pkg: theme.packages.length === 1 ? theme.packages[0].id : null, day: null, time: null, form: {} };
+		var state = { pkg: theme.packages.length === 1 ? theme.packages[0].id : null, day: null, month: null, time: null, form: {} };
 		var root = h('section', { class: 'stm-theme' });
 
 		function freeCount(day) {
@@ -96,19 +96,54 @@
 
 			// 2. Day.
 			var dayStep = h('div', { class: 'stm-step' }, [h('h4', { text: '2. Alege ziua' })]);
-			var days = h('div', { class: 'stm-days' });
+			// Zilele grupate pe luni (chip-uri compacte; lunile se pot strânge).
+			var months = [];
+			var byMonth = {};
 			theme.days.forEach(function (d) {
-				var n = freeCount(d);
-				days.appendChild(h('button', {
+				var key = d.date.slice(0, 7);
+				if (!byMonth[key]) {
+					var parts = d.label.replace(',', '').split(' '); // "Marți 10 noiembrie 2026"
+					var name = parts[2] ? parts[2].charAt(0).toUpperCase() + parts[2].slice(1) : key;
+					byMonth[key] = { key: key, title: name + ' ' + (parts[3] || key.slice(0, 4)), days: [], free: 0 };
+					months.push(byMonth[key]);
+				}
+				byMonth[key].days.push(d);
+				byMonth[key].free += freeCount(d);
+			});
+			if (!state.month || !byMonth[state.month]) {
+				var firstFree = months.filter(function (m) { return m.free > 0; })[0];
+				state.month = state.day ? state.day.slice(0, 7) : (firstFree ? firstFree.key : (months[0] ? months[0].key : null));
+			}
+			var days = h('div', { class: 'stm-months' });
+			months.forEach(function (m) {
+				var open = months.length === 1 || state.month === m.key;
+				var grid = h('div', { class: 'stm-days' });
+				m.days.forEach(function (d) {
+					var n = freeCount(d);
+					grid.appendChild(h('button', {
+						type: 'button',
+						class: 'stm-day' + (state.day === d.date ? ' is-on' : ''),
+						disabled: n === 0,
+						title: d.label,
+						'aria-label': d.label + ', ' + (n === 0 ? 'complet' : n + ' locuri libere'),
+						'aria-pressed': state.day === d.date ? 'true' : 'false',
+						onclick: function () { state.day = d.date; state.month = d.date.slice(0, 7); state.time = null; render(); }
+					}, [
+						h('span', { class: 'stm-day-wd', text: d.label.slice(0, 2) }),
+						h('span', { class: 'stm-day-num', text: String(parseInt(d.date.slice(8, 10), 10)) }),
+						h('span', { class: 'stm-day-free', text: n === 0 ? 'complet' : n === 1 ? '1 loc' : n + ' locuri' })
+					]));
+				});
+				var head = h('button', {
 					type: 'button',
-					class: 'stm-day' + (state.day === d.date ? ' is-on' : ''),
-					disabled: n === 0,
-					'aria-pressed': state.day === d.date ? 'true' : 'false',
-					onclick: function () { state.day = d.date; state.time = null; render(); }
+					class: 'stm-month-head' + (months.length === 1 ? ' is-static' : ''),
+					'aria-expanded': open ? 'true' : 'false',
+					onclick: function () { if (months.length > 1) { state.month = open ? null : m.key; render(); } }
 				}, [
-					h('span', { class: 'stm-day-label', text: d.label }),
-					h('span', { class: 'stm-day-free', text: n === 0 ? 'complet' : n === 1 ? '1 loc liber' : n + ' locuri libere' })
-				]));
+					h('span', { class: 'stm-month-title', text: m.title }),
+					h('span', { class: 'stm-month-free', text: m.free === 0 ? 'complet' : m.free + ' locuri libere' })
+				]);
+				days.appendChild(h('div', { class: 'stm-month' + (open ? ' is-open' : '') }, [head, grid]));
 			});
 			dayStep.appendChild(days);
 			root.appendChild(dayStep);

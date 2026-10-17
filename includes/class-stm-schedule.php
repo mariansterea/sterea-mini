@@ -75,6 +75,8 @@ class STM_Schedule {
 				<a class="button button-primary" target="_blank" href="<?php echo esc_url( $ex_base . '&day=' . rawurlencode( $ex[1] ) ); ?>">Descarcă PDF (ziua)</a>
 				<a class="button" target="_blank" href="<?php echo esc_url( $ex_base . '&day=all' ); ?>">Descarcă PDF (toate zilele)</a>
 				<a class="button" target="_blank" href="<?php echo esc_url( $ex_base . '&day=all&list=1' ); ?>">Lista rezervărilor (PDF)</a>
+				<?php $ex_xlsx = wp_nonce_url( add_query_arg( array( 'action' => 'stm_export_xlsx', 'stm_theme' => absint( $ex[0] ), 'stm_when' => 'all' ), admin_url( 'admin-post.php' ) ), 'stm_export' ); ?>
+				<a class="button" href="<?php echo esc_url( $ex_xlsx ); ?>">Descarcă Excel</a>
 			</form>
 			<?php
 			list( $theme_id, $date ) = array_pad( explode( '|', $current ), 2, '' );
@@ -345,10 +347,16 @@ class STM_Schedule {
 			<div class="stat"><b><?php echo (int) $tot_book; ?></b><span>Rezervări</span></div>
 			<div class="stat"><b><?php echo (int) $tot_pers; ?></b><span>Persoane</span></div>
 			<div class="stat"><b><?php echo number_format( $tot_sum, 0, ',', '.' ); ?> lei</b><span>Valoare</span></div>
-			<div class="stat"><b><?php echo count( $pages ); ?></b><span>Zile</span></div>
+			<div class="stat"><b><?php echo count( array_filter( $pages, function ( $p ) { return ! empty( $p['rows'] ); } ) ); ?></b><span>Zile cu rezervări</span></div>
 		</div>
+		<?php if ( ! $tot_book ) : ?><p class="none">Nicio rezervare încă.</p><?php endif; ?>
 		<?php foreach ( $pages as $pg ) : ?>
-			<?php $day = $pg['day']; ?>
+			<?php
+			if ( ! $pg['rows'] ) {
+				continue; // doar zilele cu rezervări
+			}
+			$day = $pg['day'];
+			?>
 			<h2 class="dayhead"><?php echo esc_html( STM_Helpers::date_label( $day['date'] ) ); ?> <small><?php echo (int) $pg['n']; ?> rezervări · <?php echo (int) $pg['p']; ?> persoane · <?php echo number_format( $pg['s'], 0, ',', '.' ); ?> lei</small></h2>
 			<?php if ( ! $pg['rows'] ) : ?>
 				<p class="none">Nicio rezervare.</p>

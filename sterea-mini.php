@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Sterea Mini-Ședințe
  * Description:       Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe: sloturi, pachete, confirmări pe email, anulare de către client, reamintiri și programul zilei. Poate afișa și rezerva sloturile de pe alt site (ex. lipovenesc.ro → site-ul fotografului).
- * Version:           1.3.0
+ * Version:           1.4.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Daniela & Marian Sterea
@@ -14,7 +14,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'STM_VERSION', '1.3.0' );
+define( 'STM_VERSION', '1.4.0' );
 define( 'STM_FILE', __FILE__ );
 define( 'STM_DIR', plugin_dir_path( __FILE__ ) );
 define( 'STM_URL', plugin_dir_url( __FILE__ ) );
