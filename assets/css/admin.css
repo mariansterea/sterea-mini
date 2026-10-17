@@ -1,0 +1,86 @@
+/* Sterea Mini-Ședințe – admin */
+.stm-rows {
+	max-width: 900px;
+}
+
+.stm-rows td {
+	vertical-align: top;
+}
+
+.stm-remove {
+	color: #b32d2e;
+	font-size: 16px;
+	line-height: 30px;
+	text-decoration: none;
+}
+
+.stm-muted {
+	color: #787c82;
+}
+
+.stm-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 12px;
+	font-weight: 600;
+	background: #f0f0f1;
+	color: #50575e;
+}
+
+.stm-badge--confirmed {
+	background: #e7f5ec;
+	color: #1a7a3e;
+}
+
+.stm-badge--pending {
+	background: #fcf3e3;
+	color: #8a5a00;
+}
+
+.stm-badge--cancelled {
+	background: #f6e5e5;
+	color: #8a1f1f;
+}
+
+.stm-day-table {
+	max-width: 1100px;
+	margin-top: 12px;
+}
+
+.stm-day-table td:first-child {
+	width: 70px;
+}
+
+.stm-day-table .stm-free td {
+	color: #a7aaad;
+}
+
+.column-stm_start {
+	width: 130px;
+}
+
+.column-stm_people {
+	width: 50px;
+}
+
+@media print {
+	#adminmenumain,
+	#wpadminbar,
+	#wpfooter,
+	.stm-noprint,
+	.notice,
+	#screen-meta-links {
+		display: none !important;
+	}
+
+	#wpcontent {
+		margin-left: 0 !important;
+		padding: 0 !important;
+	}
+
+	.stm-day-table {
+		max-width: none;
+		font-size: 12pt;
+	}
+}

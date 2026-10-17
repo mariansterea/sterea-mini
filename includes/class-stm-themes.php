@@ -1,0 +1,278 @@
+<?php
+/**
+ * Themes (seasonal mini-session events): post type + meta box.
+ *
+ * @package Sterea_Mini
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+class STM_Themes {
+
+	public static function init() {
+		add_action( 'admin_menu', array( __CLASS__, 'hide_reorder' ), 99 );
+		add_action( 'init', array( __CLASS__, 'register' ) );
+		add_action( 'add_meta_boxes', array( __CLASS__, 'meta_boxes' ) );
+		add_action( 'save_post_' . STM_Helpers::CPT_THEME, array( __CLASS__, 'save' ) );
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
+		add_filter( 'manage_' . STM_Helpers::CPT_THEME . '_posts_columns', array( __CLASS__, 'columns' ) );
+		add_action( 'manage_' . STM_Helpers::CPT_THEME . '_posts_custom_column', array( __CLASS__, 'column' ), 10, 2 );
+	}
+
+	public static function hide_reorder() {
+		remove_submenu_page( 'edit.php?post_type=' . STM_Helpers::CPT_THEME, 'order-post-types-' . STM_Helpers::CPT_THEME );
+	}
+
+	public static function register() {
+		register_post_type(
+			STM_Helpers::CPT_THEME,
+			array(
+				'labels'          => array(
+					'name'               => 'Mini-ședințe',
+					'singular_name'      => 'Eveniment',
+					'menu_name'          => 'Mini-ședințe',
+					'all_items'          => 'Evenimente (ședințe)',
+					'add_new'            => 'Adaugă eveniment',
+					'add_new_item'       => 'Adaugă eveniment nou',
+					'edit_item'          => 'Editează evenimentul',
+					'not_found'          => 'Niciun eveniment încă.',
+					'featured_image'     => 'Imaginea evenimentului',
+					'set_featured_image' => 'Setează imaginea',
+				),
+				'public'          => false,
+				'show_ui'         => true,
+				'show_in_menu'    => true,
+				'menu_position'   => 57,
+				'menu_icon'       => 'dashicons-camera',
+				'supports'        => array( 'title', 'editor', 'thumbnail', 'page-attributes' ),
+				'capability_type' => 'post',
+				'map_meta_cap'    => true,
+				'rewrite'         => false,
+				'query_var'       => false,
+				'show_in_rest'    => false,
+			)
+		);
+	}
+
+	public static function assets() {
+		$screen = get_current_screen();
+		if ( ! $screen || ! in_array( $screen->post_type, array( STM_Helpers::CPT_THEME, STM_Helpers::CPT_BOOKING ), true ) ) {
+			return;
+		}
+		wp_enqueue_style( 'stm-admin', STM_URL . 'assets/css/admin.css', array(), STM_VERSION );
+		wp_enqueue_script( 'stm-admin', STM_URL . 'assets/js/admin.js', array(), STM_VERSION, true );
+	}
+
+	public static function meta_boxes() {
+		add_meta_box( 'stm_dates', 'Date și program', array( __CLASS__, 'box_dates' ), STM_Helpers::CPT_THEME, 'normal', 'high' );
+		add_meta_box( 'stm_packages', 'Pachete', array( __CLASS__, 'box_packages' ), STM_Helpers::CPT_THEME, 'normal', 'high' );
+		add_meta_box( 'stm_details', 'Locație și reguli', array( __CLASS__, 'box_details' ), STM_Helpers::CPT_THEME, 'normal', 'default' );
+		add_meta_box( 'stm_shortcode', 'Afișare pe site', array( __CLASS__, 'box_shortcode' ), STM_Helpers::CPT_THEME, 'side', 'default' );
+	}
+
+	public static function box_dates( $post ) {
+		$m = STM_Helpers::theme_meta( $post->ID );
+		wp_nonce_field( 'stm_theme_save', 'stm_theme_nonce' );
+		$days = $m['days'] ? $m['days'] : array(
+			array(
+				'date' => '',
+				'from' => '10:00',
+				'to'   => '16:00',
+			),
+		);
+		?>
+		<table class="widefat stm-rows" data-stm-rows="days">
+			<thead><tr><th>Data</th><th>De la</th><th>Până la</th><th></th></tr></thead>
+			<tbody>
+			<?php foreach ( $days as $i => $d ) : ?>
+				<tr>
+					<td><input type="date" name="stm[days][<?php echo (int) $i; ?>][date]" value="<?php echo esc_attr( $d['date'] ); ?>"></td>
+					<td><input type="time" name="stm[days][<?php echo (int) $i; ?>][from]" value="<?php echo esc_attr( $d['from'] ); ?>"></td>
+					<td><input type="time" name="stm[days][<?php echo (int) $i; ?>][to]" value="<?php echo esc_attr( $d['to'] ); ?>"></td>
+					<td><button type="button" class="button-link stm-remove" aria-label="Șterge rândul">✕</button></td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+		<p><button type="button" class="button stm-add" data-stm-target="days">+ Adaugă o zi</button></p>
+		<table class="form-table">
+			<tr>
+				<th><label for="stm-duration">Durata unei ședințe</label></th>
+				<td><input type="number" id="stm-duration" min="5" step="5" name="stm[duration]" value="<?php echo (int) $m['duration']; ?>" class="small-text"> minute</td>
+			</tr>
+			<tr>
+				<th><label for="stm-buffer">Pauză între ședințe</label></th>
+				<td><input type="number" id="stm-buffer" min="0" step="5" name="stm[buffer]" value="<?php echo (int) $m['buffer']; ?>" class="small-text"> minute
+					<p class="description">Exemplu: 30 min ședință + 10 min pauză = sloturi la 10:00, 10:40, 11:20…</p></td>
+			</tr>
+			<tr>
+				<th><label for="stm-deadline">Rezervări cu cel puțin</label></th>
+				<td><input type="number" id="stm-deadline" min="0" name="stm[deadline]" value="<?php echo (int) $m['deadline']; ?>" class="small-text"> ore înainte</td>
+			</tr>
+			<tr>
+				<th>Rezervări</th>
+				<td><label><input type="hidden" name="stm[open]" value="0"><input type="checkbox" name="stm[open]" value="1" <?php checked( $m['open'] ); ?>> Deschise (debifează ca să oprești temporar rezervările)</label></td>
+			</tr>
+		</table>
+		<?php
+	}
+
+	public static function box_packages( $post ) {
+		$m = STM_Helpers::theme_meta( $post->ID );
+		?>
+		<table class="widefat stm-rows" data-stm-rows="packages">
+			<thead><tr><th>Pachet</th><th>Preț</th><th>Ce include</th><th></th></tr></thead>
+			<tbody>
+			<?php foreach ( $m['packages'] as $i => $p ) : ?>
+				<tr>
+					<td><input type="text" class="regular-text" name="stm[packages][<?php echo (int) $i; ?>][name]" value="<?php echo esc_attr( $p['name'] ); ?>"></td>
+					<td><input type="text" class="small-text" name="stm[packages][<?php echo (int) $i; ?>][price]" value="<?php echo esc_attr( $p['price'] ); ?>" placeholder="350"> lei</td>
+					<td><textarea rows="2" class="large-text" name="stm[packages][<?php echo (int) $i; ?>][desc]" placeholder="Ex: 10 fotografii editate, livrare online în 14 zile"><?php echo esc_textarea( $p['desc'] ); ?></textarea></td>
+					<td><button type="button" class="button-link stm-remove" aria-label="Șterge rândul">✕</button></td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+		<p><button type="button" class="button stm-add" data-stm-target="packages">+ Adaugă pachet</button></p>
+		<?php
+	}
+
+	public static function box_details( $post ) {
+		$m = STM_Helpers::theme_meta( $post->ID );
+		?>
+		<table class="form-table">
+			<tr>
+				<th><label for="stm-location">Locație</label></th>
+				<td><input type="text" id="stm-location" class="regular-text" name="stm[location]" value="<?php echo esc_attr( $m['location'] ); ?>"></td>
+			</tr>
+			<tr>
+				<th><label for="stm-address">Adresă</label></th>
+				<td><input type="text" id="stm-address" class="large-text" name="stm[address]" value="<?php echo esc_attr( $m['address'] ); ?>"></td>
+			</tr>
+			<tr>
+				<th><label for="stm-map">Link Google Maps</label></th>
+				<td><input type="url" id="stm-map" class="large-text" name="stm[map_url]" value="<?php echo esc_attr( $m['map_url'] ); ?>" placeholder="https://maps.app.goo.gl/..."></td>
+			</tr>
+			<tr>
+				<th><label for="stm-people">Persoane într-o ședință</label></th>
+				<td><input type="number" id="stm-people" min="1" name="stm[max_people]" value="<?php echo (int) $m['max_people']; ?>" class="small-text"> maximum</td>
+			</tr>
+		</table>
+		<p class="description">Descrierea evenimentului (ce decor, ce se întâmplă) se scrie în editorul de mai sus, iar imaginea din caseta „Imaginea evenimentului”.</p>
+		<?php
+	}
+
+	public static function box_shortcode( $post ) {
+		if ( 'auto-draft' === $post->post_status ) {
+			echo '<p>Salvează evenimentul ca să primești codul.</p>';
+			return;
+		}
+		?>
+		<p>Doar acest eveniment:</p>
+		<p><input type="text" readonly class="widefat code" onfocus="this.select()" value="<?php echo esc_attr( '[sterea_mini id="' . $post->ID . '"]' ); ?>"></p>
+		<p>Toate evenimentele cu date viitoare:</p>
+		<p><input type="text" readonly class="widefat code" onfocus="this.select()" value="[sterea_mini]"></p>
+		<p class="description">Pune codul într-o pagină (bloc „Shortcode”).</p>
+		<?php
+	}
+
+	public static function save( $post_id ) {
+		if ( ! isset( $_POST['stm_theme_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['stm_theme_nonce'] ) ), 'stm_theme_save' ) ) {
+			return;
+		}
+		if ( ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) || ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized per field below.
+		$in = isset( $_POST['stm'] ) && is_array( $_POST['stm'] ) ? wp_unslash( $_POST['stm'] ) : array();
+
+		$data = array(
+			'location'   => sanitize_text_field( isset( $in['location'] ) ? $in['location'] : '' ),
+			'address'    => sanitize_text_field( isset( $in['address'] ) ? $in['address'] : '' ),
+			'map_url'    => esc_url_raw( isset( $in['map_url'] ) ? $in['map_url'] : '' ),
+			'duration'   => max( 5, absint( isset( $in['duration'] ) ? $in['duration'] : 30 ) ),
+			'buffer'     => absint( isset( $in['buffer'] ) ? $in['buffer'] : 0 ),
+			'deadline'   => absint( isset( $in['deadline'] ) ? $in['deadline'] : 0 ),
+			'max_people' => max( 1, absint( isset( $in['max_people'] ) ? $in['max_people'] : 1 ) ),
+			'open'       => empty( $in['open'] ) ? 0 : 1,
+			'days'       => array(),
+			'packages'   => array(),
+		);
+
+		foreach ( (array) ( isset( $in['days'] ) ? $in['days'] : array() ) as $d ) {
+			$date = isset( $d['date'] ) ? sanitize_text_field( $d['date'] ) : '';
+			$from = isset( $d['from'] ) ? sanitize_text_field( $d['from'] ) : '';
+			$to   = isset( $d['to'] ) ? sanitize_text_field( $d['to'] ) : '';
+			if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) && null !== STM_Helpers::to_min( $from ) && null !== STM_Helpers::to_min( $to ) ) {
+				$data['days'][] = array(
+					'date' => $date,
+					'from' => $from,
+					'to'   => $to,
+				);
+			}
+		}
+		usort(
+			$data['days'],
+			function ( $a, $b ) {
+				return strcmp( $a['date'] . $a['from'], $b['date'] . $b['from'] );
+			}
+		);
+
+		// Bookings keep their own copy of the package name and price, so editing packages never changes them.
+		foreach ( (array) ( isset( $in['packages'] ) ? $in['packages'] : array() ) as $p ) {
+			$name = sanitize_text_field( isset( $p['name'] ) ? $p['name'] : '' );
+			if ( '' === $name ) {
+				continue;
+			}
+			$data['packages'][] = array(
+				'name'  => $name,
+				'price' => sanitize_text_field( isset( $p['price'] ) ? $p['price'] : '' ),
+				'desc'  => sanitize_textarea_field( isset( $p['desc'] ) ? $p['desc'] : '' ),
+			);
+		}
+
+		update_post_meta( $post_id, '_stm', $data );
+	}
+
+	public static function columns( $columns ) {
+		$new = array();
+		foreach ( $columns as $key => $label ) {
+			$new[ $key ] = $label;
+			if ( 'title' === $key ) {
+				$new['stm_dates']    = 'Date';
+				$new['stm_bookings'] = 'Rezervări';
+				$new['stm_code']     = 'Shortcode';
+			}
+		}
+		unset( $new['date'] );
+		return $new;
+	}
+
+	public static function column( $column, $post_id ) {
+		$m = STM_Helpers::theme_meta( $post_id );
+		if ( 'stm_dates' === $column ) {
+			$labels = array();
+			foreach ( $m['days'] as $d ) {
+				$labels[] = esc_html( wp_date( 'j M Y', strtotime( $d['date'] . ' 12:00' ) ) . ' ' . $d['from'] . '–' . $d['to'] );
+			}
+			echo $labels ? implode( '<br>', $labels ) : '—'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above.
+			if ( empty( $m['open'] ) ) {
+				echo '<br><em>Rezervări oprite</em>';
+			}
+		} elseif ( 'stm_bookings' === $column ) {
+			$total = 0;
+			foreach ( $m['days'] as $d ) {
+				$total += count( STM_Helpers::day_slots( $m, $d ) );
+			}
+			$taken = count( STM_Helpers::taken( $post_id ) );
+			printf(
+				'<a href="%s">%d / %d sloturi ocupate</a>',
+				esc_url( admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_BOOKING . '&stm_theme=' . $post_id ) ),
+				(int) $taken,
+				(int) $total
+			);
+		} elseif ( 'stm_code' === $column ) {
+			echo '<code>' . esc_html( '[sterea_mini id="' . $post_id . '"]' ) . '</code>';
+		}
+	}
+}
