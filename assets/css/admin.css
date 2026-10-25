@@ -1,86 +1,105 @@
 /* Sterea Mini-Ședințe – admin */
-.stm-rows {
-	max-width: 900px;
-}
+.stm-rows { max-width: 900px; }
+.stm-rows td { vertical-align: top; }
+.stm-remove { color: #b32d2e; font-size: 16px; line-height: 30px; text-decoration: none; }
+.stm-muted { color: #787c82; }
 
-.stm-rows td {
-	vertical-align: top;
-}
+.stm-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: #f0f0f1; color: #50575e; }
+.stm-badge--confirmed { background: #e7f5ec; color: #1a7a3e; }
+.stm-badge--pending { background: #fcf3e3; color: #8a5a00; }
+.stm-badge--cancelled { background: #f6e5e5; color: #8a1f1f; }
+.stm-badge--hidden { background: #f0f0f1; color: #787c82; }
+.stm-badge--visible { background: #e7f5ec; color: #1a7a3e; }
+.stm-badge--expired { background: #f6e5e5; color: #8a1f1f; }
 
-.stm-remove {
-	color: #b32d2e;
-	font-size: 16px;
-	line-height: 30px;
-	text-decoration: none;
-}
+.stm-quick { margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
+.stm-quick .button { padding: 0 8px; line-height: 24px; min-height: 24px; font-size: 12px; }
+.stm-quick .stm-ok { color: #1a7a3e; border-color: #8fd1a6; }
+.stm-quick .stm-no { color: #8a1f1f; border-color: #e0a3a3; }
 
-.stm-muted {
-	color: #787c82;
-}
+.stm-day-table { max-width: 1100px; margin-top: 12px; }
+.stm-day-table td:first-child { width: 70px; }
+.stm-day-table .stm-free td { color: #a7aaad; }
+.stm-day-table .stm-blocked td { color: #8a5a00; background: #fffaf0; }
+.stm-day-table .button-small { margin-left: 8px; }
+.column-stm_start { width: 130px; }
+.column-stm_people { width: 50px; }
 
-.stm-badge {
-	display: inline-block;
-	padding: 2px 8px;
-	border-radius: 10px;
-	font-size: 12px;
-	font-weight: 600;
-	background: #f0f0f1;
-	color: #50575e;
-}
+/* ---- Calendar de disponibilitate (editare eveniment) ---- */
+.stm-avail { margin: 6px 0 14px; }
+.stm-avail-tools { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: flex-start; margin-bottom: 12px; }
+.stm-avail-default { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.stm-avail-default .description { flex-basis: 100%; margin: 0; }
+.stm-avail-range summary { list-style: none; cursor: pointer; }
+.stm-avail-range summary::-webkit-details-marker { display: none; }
+.stm-avail-range-body { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 10px; padding: 12px; background: #f6f7f7; border: 1px solid #dcdcde; border-radius: 4px; }
+.stm-avail-wd label { margin-right: 6px; white-space: nowrap; }
+.stm-cal-wrap { display: flex; flex-wrap: wrap; gap: 18px; }
+.stm-cal { width: 330px; }
+.stm-cal-title { font-weight: 600; text-transform: capitalize; margin: 0 0 6px; }
+.stm-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.stm-cal-wd { text-align: center; font-size: 11px; color: #787c82; text-transform: uppercase; }
+.stm-cal-day { position: relative; min-height: 52px; border: 1px solid #dcdcde; border-radius: 6px; background: #fff; padding: 4px 5px; cursor: pointer; font-size: 12px; user-select: none; }
+.stm-cal-day:hover { border-color: #2271b1; }
+.stm-cal-day.is-other { visibility: hidden; }
+.stm-cal-day.is-past { background: #f6f7f7; color: #a7aaad; cursor: default; }
+.stm-cal-day.is-past:hover { border-color: #dcdcde; }
+.stm-cal-day.is-off { background: #fdeeee; color: #8a1f1f; }
+.stm-cal-day.is-on { background: #e7f5ec; border-color: #1a7a3e; color: #1a7a3e; }
+.stm-cal-day.is-on.is-past { background: #eef4ef; color: #6f8f78; border-color: #b7d3bf; }
+.stm-cal-day.is-on.is-off { background: #fdeeee; border-color: #c88; }
+.stm-cal-num { font-weight: 700; display: block; }
+.stm-cal-hours { display: block; margin-top: 2px; border: 0; background: transparent; padding: 0; font-size: 11px; color: inherit; cursor: pointer; text-decoration: underline dotted; }
+.stm-cal-badge { position: absolute; right: 3px; top: 3px; font-size: 10px; background: #1f2328; color: #fff; border-radius: 8px; padding: 0 5px; line-height: 15px; }
+.stm-cal-day.is-taken { border-width: 2px; }
+.stm-cal-off { display: block; font-size: 10px; margin-top: 2px; }
+.stm-cal-day.is-editing { z-index: 2; }
+.stm-cal-pop { position: absolute; left: 0; top: 100%; z-index: 5; background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.15); padding: 8px; white-space: nowrap; display: flex; gap: 6px; align-items: center; cursor: default; }
+.stm-cal-pop input[type="time"] { width: 86px; }
+.stm-avail-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0 4px; font-size: 12px; color: #50575e; }
+.stm-lg { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid #dcdcde; vertical-align: -2px; margin-right: 4px; background: #fff; }
+.stm-lg-on { background: #e7f5ec; border-color: #1a7a3e; }
+.stm-lg-taken { background: #e7f5ec; border: 2px solid #1a7a3e; }
+.stm-lg-off { background: #fdeeee; }
+.stm-lg-past { background: #f6f7f7; }
+.stm-avail-summary { font-size: 13px; color: #1d2327; margin-top: 6px; }
 
-.stm-badge--confirmed {
-	background: #e7f5ec;
-	color: #1a7a3e;
-}
+/* ---- Zile libere (Setări) ---- */
+.stm-off-rows td { vertical-align: middle; }
 
-.stm-badge--pending {
-	background: #fcf3e3;
-	color: #8a5a00;
-}
+/* ---- Cupoane ---- */
+.stm-coupon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; max-width: 900px; }
+.stm-coupon-grid .is-wide { grid-column: 1 / -1; }
+.stm-coupon-grid label.stm-lbl { display: block; font-weight: 600; margin-bottom: 4px; }
+.stm-coupon-grid .description { margin-top: 4px; }
+.stm-coupon-code { font-family: Menlo, Consolas, monospace; font-size: 13px; background: #f0f0f1; padding: 2px 6px; border-radius: 3px; }
+.stm-check-list { display: flex; flex-wrap: wrap; gap: 6px 14px; }
 
-.stm-badge--cancelled {
-	background: #f6e5e5;
-	color: #8a1f1f;
-}
-
-.stm-day-table {
-	max-width: 1100px;
-	margin-top: 12px;
-}
-
-.stm-day-table td:first-child {
-	width: 70px;
-}
-
-.stm-day-table .stm-free td {
-	color: #a7aaad;
-}
-
-.column-stm_start {
-	width: 130px;
-}
-
-.column-stm_people {
-	width: 50px;
-}
+/* ---- Dashboard ---- */
+.stm-dash-filters { display: flex; gap: 8px; align-items: center; margin: 12px 0 18px; flex-wrap: wrap; }
+.stm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.stm-kpi { background: #fff; border: 1px solid #dcdcde; border-radius: 8px; padding: 14px 16px; }
+.stm-kpi b { display: block; font-size: 26px; line-height: 1.1; margin-bottom: 4px; color: #1d2327; }
+.stm-kpi span { font-size: 12px; color: #50575e; text-transform: uppercase; letter-spacing: .04em; }
+.stm-kpi small { display: block; color: #787c82; margin-top: 4px; }
+.stm-kpi--ok b { color: #1a7a3e; }
+.stm-kpi--warn b { color: #8a5a00; }
+.stm-dash-two { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 1100px) { .stm-dash-two { grid-template-columns: 1fr; } }
+.stm-panel { background: #fff; border: 1px solid #dcdcde; border-radius: 8px; padding: 14px 16px; }
+.stm-panel h2 { margin: 0 0 10px; font-size: 15px; }
+.stm-heat { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.stm-heat a { display: block; border-radius: 6px; padding: 8px 8px 6px; text-decoration: none; color: #1d2327; border: 1px solid #dcdcde; background: #fff; }
+.stm-heat a:hover { border-color: #2271b1; }
+.stm-heat .d { font-weight: 700; font-size: 13px; display: block; text-transform: capitalize; }
+.stm-heat .n { font-size: 12px; color: #50575e; }
+.stm-heat .h1 { background: #eef7f1; } .stm-heat .h2 { background: #cfeadb; } .stm-heat .h3 { background: #9fd6b8; } .stm-heat .h4 { background: #5fb98b; color: #fff; } .stm-heat .h4 .n { color: #eef7f1; }
+.stm-heat .t { font-size: 10px; color: #787c82; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stm-dash-table td, .stm-dash-table th { padding: 6px 8px; }
+.stm-dash-empty { color: #787c82; padding: 10px 0; }
 
 @media print {
-	#adminmenumain,
-	#wpadminbar,
-	#wpfooter,
-	.stm-noprint,
-	.notice,
-	#screen-meta-links {
-		display: none !important;
-	}
-
-	#wpcontent {
-		margin-left: 0 !important;
-		padding: 0 !important;
-	}
-
-	.stm-day-table {
-		max-width: none;
-		font-size: 12pt;
-	}
+	#adminmenumain, #wpadminbar, #wpfooter, .stm-noprint, .notice, #screen-meta-links { display: none !important; }
+	#wpcontent { margin-left: 0 !important; padding: 0 !important; }
+	.stm-day-table { max-width: none; font-size: 12pt; }
 }

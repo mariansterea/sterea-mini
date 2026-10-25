@@ -157,6 +157,13 @@
 .stm-total { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--stm-soft); border-radius: 8px; font-weight: 700; }
 .stm-total em { font-style: normal; color: var(--stm-accent); font-size: 18px; }
 
+.stm-coupon { margin-bottom: 14px; }
+.stm-coupon-row { display: flex; gap: 8px; }
+.stm-coupon-row .stm-input { max-width: 220px; text-transform: uppercase; }
+.stm-coupon-row .stm-input[disabled] { background: var(--stm-soft); color: var(--stm-muted); }
+.stm-coupon-ok { color: var(--stm-ok); font-size: 13px; margin-top: 6px; font-weight: 700; }
+.stm-total s { color: var(--stm-muted); font-weight: 400; margin-left: 6px; }
+
 /* ---- Succes ---- */
 .stm-success { text-align: center; padding: 20px 10px; }
 .stm-success-icon { width: 64px; height: 64px; border-radius: 50%; background: var(--stm-ok); margin: 0 auto 16px; position: relative; }
