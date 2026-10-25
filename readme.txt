@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -28,6 +28,12 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 4. Al doilea site: instalați același plugin, în Setări alegeți „Afișare de pe alt site” și completați adresa site-ului principal. Puneți [sterea_mini] într-o pagină.
 
 == Istoric versiuni ==
+
+= 1.5.0 (2026-10-25) =
+* Formular nou de rezervare în 4 pași (Pachet → Data și ora → Datele tale → Confirmare), cu bară laterală de progres și rezumatul alegerilor, calendar lunar și pas de confirmare înainte de trimitere.
+* Ecran de succes cu „Adaugă în Google Calendar” și link către hartă.
+* Scriptul formularului este exclus de la „delay/defer JS” (LiteSpeed Cache, WP Rocket): formularul se încarcă imediat, nu doar după ce vizitatorul dă scroll.
+* Backend-ul, API-ul și datele rămân neschimbate; același shortcode [sterea_mini].
 
 = 1.4.0 (2026-10-17) =
 * Zilele sunt grupate pe luni, ca chip-uri compacte (3 pe rând pe telefon); lunile se pot strânge, iar prima cu locuri libere e deschisă.
