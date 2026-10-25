@@ -12,11 +12,23 @@ class STM_Frontend {
 	public static function init() {
 		add_action( 'init', array( __CLASS__, 'register' ) );
 		add_shortcode( 'sterea_mini', array( __CLASS__, 'shortcode' ) );
+		add_filter( 'script_loader_tag', array( __CLASS__, 'script_tag' ), 10, 2 );
 	}
 
 	public static function register() {
 		wp_register_style( 'stm-front', STM_URL . 'assets/css/front.css', array(), STM_VERSION );
 		wp_register_script( 'stm-front', STM_URL . 'assets/js/front.js', array(), STM_VERSION, true );
+	}
+
+	/**
+	 * Fără „delay/defer JS” din LiteSpeed Cache, WP Rocket etc.: altfel formularul rămâne pe
+	 * „Se încarcă programul…” până când vizitatorul dă scroll sau atinge ecranul.
+	 */
+	public static function script_tag( $tag, $handle ) {
+		if ( 'stm-front' === $handle ) {
+			$tag = str_replace( '<script ', '<script data-no-optimize="1" data-no-defer="1" data-no-minify="1" data-cfasync="false" ', $tag );
+		}
+		return $tag;
 	}
 
 	public static function shortcode( $atts ) {
@@ -27,58 +39,18 @@ class STM_Frontend {
 		if ( $accent ) {
 			wp_add_inline_style( 'stm-front', '.stm-app{--stm-accent:' . $accent . '}' );
 		}
-		wp_add_inline_style( 'stm-front', self::extra_css() );
 		wp_enqueue_script( 'stm-front' );
 
-		$api = add_query_arg( 'rest_route', '/' . STM_Rest::NS, home_url( '/' ) );
+		$api    = add_query_arg( 'rest_route', '/' . STM_Rest::NS, home_url( '/' ) );
+		$config = array(
+			'phone' => (string) STM_Helpers::get( 'contact_phone' ),
+		);
 
 		return sprintf(
-			'<div class="stm-app" data-api="%s" data-theme="%d" aria-live="polite"><p class="stm-loading">Se încarcă programul…</p><noscript>Pentru rezervare este nevoie de JavaScript activat în browser.</noscript></div>',
+			'<div class="stm-app" data-api="%s" data-theme="%d" data-config="%s" aria-live="polite"><p class="stm-loading"><span class="stm-spinner"></span>Se încarcă programul…</p><noscript>Pentru rezervare este nevoie de JavaScript activat în browser.</noscript></div>',
 			esc_url( $api ),
-			absint( $atts['id'] )
+			absint( $atts['id'] ),
+			esc_attr( wp_json_encode( $config ) )
 		);
-	}
-
-	/**
-	 * Delimitare cromatica pasi + pachete (2026-10-17).
-	 */
-	public static function extra_css() {
-		return <<<'CSS'
-.stm-app{--stm-p1:#b08d57;--stm-p1-soft:#faf6ee;--stm-p2:#2f5d50;--stm-p2-soft:#eef4f1;--stm-day:#1f4f7a;--stm-day-soft:#eef3f8}
-.stm-app .stm-step h4{display:flex;align-items:center;gap:10px;font-size:1.1em;margin-bottom:14px}
-.stm-app .stm-step h4::before{content:"";display:inline-block;width:5px;height:22px;border-radius:3px;background:var(--stm-p2);flex:0 0 5px}
-.stm-app .stm-step:has(.stm-days) h4::before,.stm-app .stm-step:has(.stm-slots) h4::before{background:var(--stm-day)}
-.stm-app .stm-package{position:relative;padding:18px 56px 18px 18px;border-top-width:5px;gap:6px;transition:border-color .15s,background .15s,box-shadow .15s,transform .15s}
-.stm-app .stm-package::after{content:"";position:absolute;top:18px;right:16px;width:24px;height:24px;border-radius:50%;border:2px solid #cfd4d9;background:#fff;box-sizing:border-box;transition:all .15s}
-.stm-app .stm-package:nth-child(1){border-top-color:var(--stm-p1)}
-.stm-app .stm-package:nth-child(1) .stm-package-price{color:var(--stm-p1)}
-.stm-app .stm-package:nth-child(2){border-top-color:var(--stm-p2)}
-.stm-app .stm-package:nth-child(2) .stm-package-price{color:var(--stm-p2)}
-.stm-app .stm-package:hover:not(.is-on){box-shadow:0 6px 18px rgba(0,0,0,.08);transform:translateY(-1px)}
-.stm-app .stm-package:nth-child(1):hover:not(.is-on){border-color:var(--stm-p1);background:var(--stm-p1-soft)}
-.stm-app .stm-package:nth-child(2):hover:not(.is-on){border-color:var(--stm-p2);background:var(--stm-p2-soft)}
-.stm-app .stm-package:hover:not(.is-on)::after{border-color:currentColor}
-.stm-app .stm-package:nth-child(1).is-on{border-color:var(--stm-p1);background:var(--stm-p1-soft);box-shadow:0 0 0 4px rgba(176,141,87,.18)}
-.stm-app .stm-package:nth-child(2).is-on{border-color:var(--stm-p2);background:var(--stm-p2-soft);box-shadow:0 0 0 4px rgba(47,93,80,.18)}
-.stm-app .stm-package.is-on::after{content:"✓";color:#fff;font-size:14px;font-weight:700;line-height:20px;text-align:center;border-color:transparent}
-.stm-app .stm-package:nth-child(1).is-on::after{background:var(--stm-p1)}
-.stm-app .stm-package:nth-child(2).is-on::after{background:var(--stm-p2)}
-.stm-app .stm-step:has(.stm-days),.stm-app .stm-step:has(.stm-slots){margin:16px 16px 8px;padding:18px 16px 16px;background:var(--stm-day-soft);border-radius:var(--stm-radius)}
-.stm-app .stm-step:has(.stm-days)+.stm-step:has(.stm-slots){margin-top:0}
-.stm-app .stm-months{display:flex;flex-direction:column;gap:10px}.stm-app .stm-month{background:#fff;border:1px solid #c9d6e2;border-radius:12px;overflow:hidden}.stm-app .stm-month-head{display:flex;justify-content:space-between;align-items:center;width:100%;margin:0;padding:12px 14px;background:#fff;color:#1f2a24;border:0;border-radius:0;text-align:left;cursor:pointer;font-weight:700}.stm-app .stm-month-head.is-static{cursor:default}.stm-app .stm-month-head:not(.is-static)::after{content:\"\";width:9px;height:9px;border-right:2px solid #1f4f7a;border-bottom:2px solid #1f4f7a;transform:rotate(-45deg);margin-left:10px;transition:transform .15s;flex:0 0 9px}.stm-app .stm-month.is-open .stm-month-head:not(.is-static)::after{transform:rotate(45deg)}.stm-app .stm-month-free{margin-left:auto;font-weight:400;font-size:.85em;color:#1f4f7a;background:#eef3f8;padding:3px 10px;border-radius:999px;white-space:nowrap}.stm-app .stm-month .stm-days{display:none;padding:10px 12px 12px;border-top:1px solid #e4ebf1}.stm-app .stm-month.is-open .stm-days{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}.stm-app .stm-day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:74px;margin:0;padding:8px 4px;border:2px solid #c9d6e2;border-radius:12px;background:#fff;color:#1f2a24;text-align:center;line-height:1.15;transition:border-color .15s,background .15s,box-shadow .15s,transform .15s}.stm-app .stm-day-wd{font-size:.72em;text-transform:uppercase;letter-spacing:.06em;color:#6b7a72}.stm-app .stm-day-num{font-size:1.45em;font-weight:900}.stm-app .stm-day .stm-day-free{font-size:.72em;color:#1f4f7a;background:#eef3f8;padding:1px 7px;border-radius:999px;margin-top:3px;opacity:1}.stm-app .stm-day.is-on .stm-day-wd,.stm-app .stm-day.is-on .stm-day-free{color:#fff;background:rgba(255,255,255,.18)}.stm-app .stm-day:disabled .stm-day-free{background:transparent;color:#a3ada7}
-.stm-app .stm-day:hover:not(:disabled):not(.is-on){border-color:var(--stm-day);background:#fff;box-shadow:0 6px 18px rgba(31,79,122,.12);transform:translateY(-1px)}
-.stm-app .stm-day.is-on{background:var(--stm-day);border-color:var(--stm-day);color:#fff;box-shadow:0 0 0 4px rgba(31,79,122,.15)}
-.stm-app .stm-day.is-on .stm-day-num::before{content:"✓ ";font-size:.6em;vertical-align:middle}
-.stm-app .stm-day:disabled{opacity:.45;text-decoration:line-through;cursor:not-allowed}
-.stm-app .stm-slot.is-on,.stm-app .stm-slot[aria-pressed="true"]{background:var(--stm-day);border-color:var(--stm-day);color:#fff}
-@media (max-width:600px){.stm-app .stm-step:has(.stm-days),.stm-app .stm-step:has(.stm-slots){margin:12px 10px 6px;padding:14px 12px 12px}.stm-app .stm-month.is-open .stm-days{grid-template-columns:repeat(3,1fr);gap:8px;padding:8px}.stm-app .stm-day{min-height:70px}}
-.stm-app .stm-field.is-invalid input,.stm-app .stm-field.is-invalid textarea,.stm-app .stm-field.is-invalid select{border-color:#c0392b;box-shadow:0 0 0 3px rgba(192,57,43,.15);background:#fff8f7}
-.stm-app .stm-field.is-invalid>span{color:#c0392b;font-weight:700}
-.stm-app .stm-consent.is-invalid{color:#c0392b}
-.stm-app .stm-consent.is-invalid input{outline:2px solid #c0392b;outline-offset:2px}
-.stm-app .stm-field-error{display:block;color:#c0392b;font-size:.85em;font-style:normal;margin-top:4px}
-.stm-app .stm-error{background:#fdecea;border-left:4px solid #c0392b;padding:10px 12px;border-radius:6px;color:#8a1f12;font-weight:600}
-@media (max-width:600px){.stm-app .stm-head--img img{display:none}.stm-app .stm-head .stm-title{display:none}.stm-app .stm-head-text{padding-top:4px}.stm-app .stm-desc{font-size:.92em}.stm-app .stm-step{padding-top:12px}}
-CSS;
 	}
 }
