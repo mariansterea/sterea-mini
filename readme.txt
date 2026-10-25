@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.6.1
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -31,6 +31,9 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 4. Al doilea site: instalați același plugin, în Setări alegeți „Afișare de pe alt site” și completați adresa site-ului principal. Puneți [sterea_mini] într-o pagină.
 
 == Istoric versiuni ==
+
+= 1.6.1 (2026-10-25) =
+* Lista de evenimente: coloana „Zile” arată un rezumat (număr de zile, interval, ore), nu toate zilele.
 
 = 1.6.0 (2026-10-25) =
 * Disponibilitate: calendar vizual în eveniment (click pe zi = pornit/oprit, orele se schimbă din calendar, „la toate zilele”), „Adaugă interval de zile” cu zile din săptămână și ore; zilele libere din Setări (ex. Crăciun, și „în fiecare an”) nu apar în formular.
