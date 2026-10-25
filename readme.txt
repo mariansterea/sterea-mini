@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.6.1
+Stable tag: 1.7.0
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -13,6 +13,7 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 * Pachete la alegere, cu preț și descriere (ex. ședință 30 min / ședință + album).
 * Calendar vizual de disponibilitate: click pe zile, „Adaugă interval de zile” (de la–până la, zile din săptămână, ore), ore blocate manual, zile libere globale.
 * Cupoane de reducere: procent sau sumă fixă, pe evenimente/pachete, limită totală și per client, perioadă, doar pentru anumiți clienți (după email).
+* Google Calendar: fiecare rezervare apare automat în calendarul ales (nume, telefon, email, pachet, observații), verde = confirmată, galben = în așteptare; se mută odată cu rezervarea și dispare la anulare.
 * Dashboard: rezervări confirmate / în așteptare, ore libere, grad de ocupare, încasări estimate, ocuparea pe zile, următoarele rezervări.
 * Formular pe site: pachet → zi → oră → date client. Fără plată online.
 * O oră nu poate fi rezervată de două ori (blocare la nivel de bază de date).
@@ -30,7 +31,21 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 3. Mini-ședințe → Adaugă eveniment. Puneți [sterea_mini] într-o pagină.
 4. Al doilea site: instalați același plugin, în Setări alegeți „Afișare de pe alt site” și completați adresa site-ului principal. Puneți [sterea_mini] într-o pagină.
 
+== Google Calendar: configurare (o singură dată, ~10 minute) ==
+
+1. În Google Calendar (pe calculator): lângă „Alte calendare” apasă „+” → „Creează un calendar nou” → numele „Ședințe foto” → Creează. Dă-i o culoare din meniul calendarului (ex. auriu).
+2. Mergi la https://console.cloud.google.com/ (cu contul tău Google) → creează un proiect (ex. „sterea-mini”).
+3. „APIs & Services” → „Enable APIs and services” → caută „Google Calendar API” → Enable.
+4. „IAM & Admin” → „Service accounts” → „Create service account” → nume „sterea-mini” → Create → Done.
+5. Deschide contul de serviciu → tab „Keys” → „Add key” → „Create new key” → JSON → se descarcă un fișier .json. Copiază adresa lui de email (…@….iam.gserviceaccount.com).
+6. Înapoi în Google Calendar: calendarul „Ședințe foto” → „Setări și partajare” → „Partajează cu anumite persoane” → Adaugă adresa contului de serviciu, cu „Efectuează modificări la evenimente”.
+7. Tot acolo, jos, la „Integrează calendarul”, copiază „ID calendar”.
+8. WordPress → Mini-ședințe → Setări → Google Calendar: bifează sincronizarea, lipește ID-ul calendarului și conținutul fișierului .json → Salvează → „Testează conexiunea” → „Pune în calendar rezervările viitoare”.
+
 == Istoric versiuni ==
+
+= 1.7.0 (2026-10-25) =
+* Sincronizare cu Google Calendar printr-un cont de serviciu: rezervare nouă → eveniment cu numele, telefonul, emailul, pachetul, reducerea și observațiile clientului; mutare / confirmare → actualizare (verde = confirmată, galben = în așteptare); anulare (de client sau din admin) → evenimentul dispare. Setări → Google Calendar, cu „Testează conexiunea” și „Pune în calendar rezervările viitoare”.
 
 = 1.6.1 (2026-10-25) =
 * Lista de evenimente: coloana „Zile” arată un rezumat (număr de zile, interval, ore), nu toate zilele.
