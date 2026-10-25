@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.5.1
+Stable tag: 1.6.0
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -11,6 +11,9 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 * Evenimente (ex. „Toamna la fermă”, „Ședințe foto de Crăciun”) cu imagine, descriere, locație, zile și intervale orare.
 * Sloturi generate automat: durată + pauză (ex. 30 + 10 min → 10:00, 10:40, 11:20…).
 * Pachete la alegere, cu preț și descriere (ex. ședință 30 min / ședință + album).
+* Calendar vizual de disponibilitate: click pe zile, „Adaugă interval de zile” (de la–până la, zile din săptămână, ore), ore blocate manual, zile libere globale.
+* Cupoane de reducere: procent sau sumă fixă, pe evenimente/pachete, limită totală și per client, perioadă, doar pentru anumiți clienți (după email).
+* Dashboard: rezervări confirmate / în așteptare, ore libere, grad de ocupare, încasări estimate, ocuparea pe zile, următoarele rezervări.
 * Formular pe site: pachet → zi → oră → date client. Fără plată online.
 * O oră nu poate fi rezervată de două ori (blocare la nivel de bază de date).
 * Emailuri: confirmare către client (cu „Adaugă în calendar” și link de anulare), notificare către voi, reamintire cu o zi înainte.
@@ -28,6 +31,13 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 4. Al doilea site: instalați același plugin, în Setări alegeți „Afișare de pe alt site” și completați adresa site-ului principal. Puneți [sterea_mini] într-o pagină.
 
 == Istoric versiuni ==
+
+= 1.6.0 (2026-10-25) =
+* Disponibilitate: calendar vizual în eveniment (click pe zi = pornit/oprit, orele se schimbă din calendar, „la toate zilele”), „Adaugă interval de zile” cu zile din săptămână și ore; zilele libere din Setări (ex. Crăciun, și „în fiecare an”) nu apar în formular.
+* Programul zilei: „Blochează” o oră liberă (dispare din formular, fără rezervare) și „+ Rezervare manuală” cu evenimentul, ziua și ora deja completate.
+* Cupoane: meniu nou; cod, procent sau sumă fixă, pe anumite evenimente sau pachete, limită totală și per client, valabilitate, cupon personal (doar anumite emailuri), activ/oprit, contor folosiri. În formular: „Ai un cod de reducere?” la pasul Confirmare, cu totalul recalculat pe server. Reducerea apare în rezervare, emailuri, Programul zilei și exporturi.
+* Dashboard (prima pagină din meniu): cifre cheie, ocuparea pe zile cu click către Programul zilei, următoarele rezervări, butoane rapide.
+* Rezervări: butoane „Confirmă / Anulează / Reactivează” direct în listă și acțiuni în masă.
 
 = 1.5.1 (2026-10-25) =
 * Culoarea de accent implicită este auriul site-ului (#be9656); setarea veche verde se trece automat pe auriu, orice altă culoare aleasă rămâne.
