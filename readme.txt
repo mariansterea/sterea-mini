@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -28,6 +28,10 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 4. Al doilea site: instalați același plugin, în Setări alegeți „Afișare de pe alt site” și completați adresa site-ului principal. Puneți [sterea_mini] într-o pagină.
 
 == Istoric versiuni ==
+
+= 1.5.1 (2026-10-25) =
+* Culoarea de accent implicită este auriul site-ului (#be9656); setarea veche verde se trece automat pe auriu, orice altă culoare aleasă rămâne.
+* Etichetele și butoanele formularului nu mai preiau majusculele temei.
 
 = 1.5.0 (2026-10-25) =
 * Formular nou de rezervare în 4 pași (Pachet → Data și ora → Datele tale → Confirmare), cu bară laterală de progres și rezumatul alegerilor, calendar lunar și pas de confirmare înainte de trimitere.
