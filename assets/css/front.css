@@ -1,7 +1,7 @@
 /* Sterea Mini-Ședințe – formular de rezervare în pași (culoarea de accent vine din Setări) */
 
 .stm-app {
-	--stm-accent: #2f5d50;
+	--stm-accent: #be9656;
 	--stm-dark: #1f2328;
 	--stm-ink: #1f2328;
 	--stm-muted: #667085;
@@ -21,6 +21,7 @@
 .stm-app button { font: inherit; cursor: pointer; }
 .stm-app input, .stm-app textarea, .stm-app select { font: inherit; color: inherit; }
 .stm-app h3, .stm-app p, .stm-app ol { margin: 0; }
+.stm-app label, .stm-app h3, .stm-app button, .stm-app strong, .stm-app output { text-transform: none; letter-spacing: normal; }
 
 .stm-loading, .stm-note { padding: 16px 18px; background: var(--stm-soft); border-radius: var(--stm-radius); color: var(--stm-muted); }
 .stm-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--stm-line); border-top-color: var(--stm-accent); border-radius: 50%; vertical-align: -3px; margin-right: 8px; animation: stm-spin .8s linear infinite; }
