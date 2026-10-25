@@ -51,7 +51,27 @@ class STM_Settings {
 			'reminders'     => empty( $in['reminders'] ) ? 0 : 1,
 			'accent'        => sanitize_hex_color( isset( $in['accent'] ) ? $in['accent'] : '' ),
 			'days_off'      => array(),
+			'gcal_enabled'  => empty( $in['gcal_enabled'] ) ? 0 : 1,
+			'gcal_calendar_id' => sanitize_text_field( isset( $in['gcal_calendar_id'] ) ? $in['gcal_calendar_id'] : '' ),
+			'gcal_json'     => '',
 		);
+		// Cheia JSON a contului de serviciu: se păstrează cea veche dacă nu s-a lipit alta.
+		$json_in = trim( (string) ( isset( $in['gcal_json'] ) ? $in['gcal_json'] : '' ) );
+		$old     = STM_Helpers::settings();
+		if ( '' === $json_in ) {
+			$out['gcal_json'] = (string) $old['gcal_json'];
+		} elseif ( '-' === $json_in ) {
+			$out['gcal_json'] = '';
+		} else {
+			$decoded = json_decode( $json_in, true );
+			if ( is_array( $decoded ) && ! empty( $decoded['client_email'] ) && ! empty( $decoded['private_key'] ) ) {
+				$out['gcal_json'] = wp_json_encode( $decoded );
+				delete_transient( STM_GCal::TOKEN );
+			} else {
+				$out['gcal_json'] = (string) $old['gcal_json'];
+				add_settings_error( STM_Helpers::OPTION, 'stm_gcal', 'Cheia JSON nu este validă (trebuie să conțină client_email și private_key). Am păstrat cheia anterioară.' );
+			}
+		}
 		foreach ( (array) ( isset( $in['days_off'] ) ? $in['days_off'] : array() ) as $d ) {
 			$from = sanitize_text_field( isset( $d['from'] ) ? $d['from'] : '' );
 			$to   = sanitize_text_field( isset( $d['to'] ) ? $d['to'] : '' );
@@ -187,6 +207,44 @@ class STM_Settings {
 					</tbody>
 				</table>
 				<p><button type="button" class="button stm-add" data-stm-target="days_off">+ Adaugă zi liberă</button></p>
+
+				<h2>Google Calendar</h2>
+				<p class="description">Fiecare rezervare apare automat într-un calendar Google (cu numele, telefonul, emailul și pachetul clientului), se actualizează la mutare sau confirmare și dispare la anulare. Are nevoie de un cont de serviciu Google; pașii de configurare sunt în readme.</p>
+				<?php $acc = STM_GCal::account(); $st = STM_GCal::status(); ?>
+				<table class="form-table">
+					<tr>
+						<th>Sincronizare</th>
+						<td><label><input type="hidden" name="<?php echo esc_attr( self::name( 'gcal_enabled' ) ); ?>" value="0"><input type="checkbox" name="<?php echo esc_attr( self::name( 'gcal_enabled' ) ); ?>" value="1" <?php checked( $s['gcal_enabled'] ); ?>> Pune rezervările în Google Calendar</label></td>
+					</tr>
+					<tr>
+						<th><label for="stm-gcal-id">ID-ul calendarului</label></th>
+						<td><input type="text" id="stm-gcal-id" class="large-text" name="<?php echo esc_attr( self::name( 'gcal_calendar_id' ) ); ?>" value="<?php echo esc_attr( $s['gcal_calendar_id'] ); ?>" placeholder="xxxxxxxx@group.calendar.google.com">
+						<p class="description">Google Calendar → calendarul „Ședințe foto” → Setări și partajare → „ID calendar” (jos, la „Integrează calendarul”).</p></td>
+					</tr>
+					<tr>
+						<th><label for="stm-gcal-json">Cheia contului de serviciu (JSON)</label></th>
+						<td>
+							<?php if ( $acc ) : ?>
+								<p>Cheie salvată pentru <code><?php echo esc_html( $acc['client_email'] ); ?></code>. Partajează calendarul cu această adresă („Efectuează modificări la evenimente”). Lipește altă cheie ca să o înlocuiești, sau scrie <code>-</code> ca să o ștergi.</p>
+							<?php endif; ?>
+							<textarea id="stm-gcal-json" rows="4" class="large-text code" name="<?php echo esc_attr( self::name( 'gcal_json' ) ); ?>" placeholder='{"type": "service_account", "client_email": "...", "private_key": "..."}'></textarea>
+							<p class="description">Conținutul fișierului .json descărcat din Google Cloud (Service account → Keys). Se păstrează doar pe acest server.</p>
+						</td>
+					</tr>
+					<tr>
+						<th>Stare</th>
+						<td>
+							<?php if ( $st ) : ?>
+								<p><span class="stm-badge stm-badge--<?php echo $st['ok'] ? 'confirmed' : 'cancelled'; ?>"><?php echo $st['ok'] ? 'OK' : 'Eroare'; ?></span> <?php echo esc_html( $st['message'] ); ?> <span class="stm-muted">(<?php echo esc_html( $st['time'] ); ?>)</span></p>
+							<?php else : ?>
+								<p class="stm-muted">Nicio acțiune încă.</p>
+							<?php endif; ?>
+							<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=stm_gcal_test' ), 'stm_gcal_test' ) ); ?>">Testează conexiunea</a>
+							<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=stm_gcal_sync_all' ), 'stm_gcal_sync_all' ) ); ?>" onclick="return confirm('Pun în calendar toate rezervările viitoare neanulate?')">Pune în calendar rezervările viitoare</a>
+							<p class="description">Salvează setările înainte de test. Culori: verde = confirmată, galben = în așteptare.</p>
+						</td>
+					</tr>
+				</table>
 
 				<h2>Cum îl folosești</h2>
 				<ol>

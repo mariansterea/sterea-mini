@@ -31,6 +31,9 @@ class STM_Helpers {
 			'reminders'     => 1,
 			'accent'        => '#be9656',
 			'days_off'      => array(),
+			'gcal_enabled'  => 0,
+			'gcal_calendar_id' => '',
+			'gcal_json'     => '',
 		);
 	}
 
