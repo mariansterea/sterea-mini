@@ -273,7 +273,7 @@ class STM_Themes {
 		foreach ( $columns as $key => $label ) {
 			$new[ $key ] = $label;
 			if ( 'title' === $key ) {
-				$new['stm_dates']    = 'Date';
+				$new['stm_dates']    = 'Zile';
 				$new['stm_bookings'] = 'Rezervări';
 				$new['stm_code']     = 'Shortcode';
 			}
@@ -285,11 +285,29 @@ class STM_Themes {
 	public static function column( $column, $post_id ) {
 		$m = STM_Helpers::theme_meta( $post_id );
 		if ( 'stm_dates' === $column ) {
-			$labels = array();
-			foreach ( $m['days'] as $d ) {
-				$labels[] = esc_html( wp_date( 'j M Y', strtotime( $d['date'] . ' 12:00' ) ) . ' ' . $d['from'] . '–' . $d['to'] );
+			// Rezumat, nu toate zilele: „32 zile · 10 nov – 13 dec 2026 · 12:00–18:00”.
+			$days = $m['days'];
+			if ( ! $days ) {
+				echo '—';
+			} else {
+				$dates = wp_list_pluck( $days, 'date' );
+				sort( $dates );
+				$today  = STM_Helpers::now()->format( 'Y-m-d' );
+				$future = count( array_filter( $dates, function ( $d ) use ( $today ) { return $d >= $today; } ) );
+				$first  = reset( $dates );
+				$last   = end( $dates );
+				$hours  = array();
+				foreach ( $days as $d ) {
+					$hours[ $d['from'] . '–' . $d['to'] ] = true;
+				}
+				$same_year = substr( $first, 0, 4 ) === substr( $last, 0, 4 );
+				$range     = $first === $last
+					? wp_date( 'j M Y', strtotime( $first . ' 12:00' ) )
+					: wp_date( $same_year ? 'j M' : 'j M Y', strtotime( $first . ' 12:00' ) ) . ' – ' . wp_date( 'j M Y', strtotime( $last . ' 12:00' ) );
+				echo '<strong>' . count( $dates ) . ' zile</strong>' . ( $future < count( $dates ) ? ' <span class="stm-muted">(' . (int) $future . ' viitoare)</span>' : '' );
+				echo '<br>' . esc_html( $range );
+				echo '<br><span class="stm-muted">' . esc_html( count( $hours ) === 1 ? key( $hours ) : 'ore diferite pe zile' ) . '</span>';
 			}
-			echo $labels ? implode( '<br>', $labels ) : '—'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above.
 			if ( empty( $m['open'] ) ) {
 				echo '<br><em>Rezervări oprite</em>';
 			}
