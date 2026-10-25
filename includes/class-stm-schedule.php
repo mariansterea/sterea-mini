@@ -13,6 +13,7 @@ class STM_Schedule {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_post_stm_export', array( __CLASS__, 'export' ) );
 		add_action( 'admin_post_stm_export_xlsx', array( __CLASS__, 'export_xlsx' ) );
+		add_action( 'admin_post_stm_block', array( __CLASS__, 'handle_block' ) );
 		add_action( 'manage_posts_extra_tablenav', array( __CLASS__, 'list_buttons' ) );
 	}
 
@@ -124,11 +125,19 @@ class STM_Schedule {
 				}
 				$by_time[ substr( $b['start'], 11, 5 ) ] = $b;
 			}
-			$slots  = STM_Helpers::day_slots( $meta, $day );
-			$booked = count( $by_time );
+			$slots   = STM_Helpers::day_slots( $meta, $day );
+			$booked  = count( $by_time );
+			$blocked = (array) $meta['blocked'];
+			$is_off  = STM_Helpers::is_day_off( $date );
+			$act     = function ( $what, $time ) use ( $theme_id, $date ) {
+				return wp_nonce_url( admin_url( 'admin-post.php?action=stm_block&do=' . $what . '&theme=' . $theme_id . '&start=' . rawurlencode( $date . ' ' . $time ) ), 'stm_block' );
+			};
+			$manual  = function ( $time ) use ( $theme_id, $date ) {
+				return admin_url( 'post-new.php?post_type=' . STM_Helpers::CPT_BOOKING . '&stm_theme=' . $theme_id . '&stm_date=' . $date . '&stm_time=' . $time );
+			};
 			?>
 			<h2><?php echo esc_html( get_the_title( $theme_id ) ); ?> — <?php echo esc_html( STM_Helpers::date_label( $date ) ); ?></h2>
-			<p><?php echo esc_html( $meta['location'] ); ?> · <?php echo (int) $booked; ?> din <?php echo count( $slots ); ?> sloturi rezervate<?php echo $cancelled ? ' · ' . (int) $cancelled . ' anulate' : ''; ?></p>
+			<p><?php echo esc_html( $meta['location'] ); ?> · <?php echo (int) $booked; ?> din <?php echo count( $slots ); ?> sloturi rezervate<?php echo $cancelled ? ' · ' . (int) $cancelled . ' anulate' : ''; ?><?php echo $is_off ? ' · <strong style="color:#8a1f1f">zi liberă (Setări), nu apare în formular</strong>' : ''; ?></p>
 			<table class="widefat striped stm-day-table">
 				<thead>
 					<tr><th>Ora</th><th>Client</th><th>Telefon</th><th>Pachet</th><th>Pers.</th><th>Observații</th><th class="stm-noprint">Status</th></tr>
@@ -136,7 +145,7 @@ class STM_Schedule {
 				<tbody>
 				<?php foreach ( $slots as $time ) : ?>
 					<?php $b = isset( $by_time[ $time ] ) ? $by_time[ $time ] : null; ?>
-					<tr class="<?php echo $b ? '' : 'stm-free'; ?>">
+					<tr class="<?php echo $b ? '' : ( in_array( $date . ' ' . $time, $blocked, true ) ? 'stm-blocked' : 'stm-free' ); ?>">
 						<td><strong><?php echo esc_html( $time ); ?></strong></td>
 						<?php if ( $b ) : ?>
 							<td><a href="<?php echo esc_url( get_edit_post_link( $b['id'] ) ); ?>"><?php echo esc_html( $b['name'] ); ?></a></td>
@@ -147,8 +156,13 @@ class STM_Schedule {
 							<td class="stm-noprint"><span class="stm-badge stm-badge--<?php echo esc_attr( $b['status'] ); ?>"><?php echo esc_html( STM_Helpers::STATUS_LABELS[ $b['status'] ] ); ?></span></td>
 						<?php elseif ( isset( $taken[ $date . ' ' . $time ] ) ) : ?>
 							<td colspan="6"><em>Ocupat</em></td>
+						<?php elseif ( in_array( $date . ' ' . $time, $blocked, true ) ) : ?>
+							<td colspan="6" class="stm-blocked-cell">Blocată manual <a class="button button-small stm-noprint" href="<?php echo esc_url( $act( 'unblock', $time ) ); ?>">Deblochează</a></td>
 						<?php else : ?>
-							<td colspan="6" class="stm-muted">liber</td>
+							<td colspan="6" class="stm-muted">liber
+								<a class="button button-small stm-noprint" href="<?php echo esc_url( $act( 'block', $time ) ); ?>" title="Ora nu mai apare în formular">Blochează</a>
+								<a class="button button-small stm-noprint" href="<?php echo esc_url( $manual( $time ) ); ?>">+ Rezervare manuală</a>
+							</td>
 						<?php endif; ?>
 					</tr>
 				<?php endforeach; ?>
@@ -156,6 +170,30 @@ class STM_Schedule {
 			</table>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Blochează / deblochează o oră liberă (nu apare în formular, fără rezervare).
+	 */
+	public static function handle_block() {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_die( 'Nu ai acces.' );
+		}
+		check_admin_referer( 'stm_block' );
+		$theme = isset( $_GET['theme'] ) ? absint( $_GET['theme'] ) : 0;
+		$start = isset( $_GET['start'] ) ? sanitize_text_field( wp_unslash( $_GET['start'] ) ) : '';
+		$do    = isset( $_GET['do'] ) && 'unblock' === $_GET['do'] ? 'unblock' : 'block';
+		if ( $theme && preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $start ) ) {
+			$list = STM_Helpers::blocked( $theme );
+			if ( 'block' === $do ) {
+				$list[] = $start;
+			} else {
+				$list = array_diff( $list, array( $start ) );
+			}
+			STM_Helpers::set_blocked( $theme, $list );
+		}
+		wp_safe_redirect( wp_get_referer() ? wp_get_referer() : admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_THEME . '&page=stm-schedule' ) );
+		exit;
 	}
 
 	/**
@@ -227,7 +265,7 @@ class STM_Schedule {
 				if ( $b ) {
 					++$n;
 					$p += (int) $b['people'];
-					$s += (float) preg_replace( '/[^0-9.]/', '', (string) $b['price'] );
+					$s += STM_Helpers::amount( $b );
 				}
 				if ( $list && ! $b ) {
 					continue;
@@ -245,7 +283,7 @@ class STM_Schedule {
 				}
 				++$n;
 				$p += (int) $b['people'];
-				$s += (float) preg_replace( '/[^0-9.]/', '', (string) $b['price'] );
+				$s += STM_Helpers::amount( $b );
 				$rows[] = array( $t, $b );
 			}
 			usort(
@@ -370,7 +408,7 @@ class STM_Schedule {
 						<td class="time"><?php echo esc_html( $time ); ?></td>
 						<td class="name"><?php echo esc_html( $b['name'] ); ?><?php echo $b['email'] ? '<small>' . esc_html( $b['email'] ) . '</small>' : ''; ?></td>
 						<td><?php echo esc_html( $b['phone'] ); ?></td>
-						<td><?php echo esc_html( $b['package'] ); ?><?php echo $b['price'] ? '<small>' . esc_html( $b['price'] ) . ' lei</small>' : ''; ?></td>
+						<td><?php echo esc_html( $b['package'] ); ?><?php echo STM_Helpers::amount( $b ) > 0 ? '<small>' . esc_html( STM_Helpers::money( STM_Helpers::amount( $b ) ) ) . ( ! empty( $b['coupon'] ) ? ' (' . esc_html( $b['coupon'] ) . ')' : '' ) . '</small>' : ''; ?></td>
 						<td><?php echo (int) $b['people']; ?></td>
 						<td class="notes"><?php echo esc_html( $b['notes'] ); ?></td>
 						<td><span class="badge <?php echo esc_attr( $b['status'] ); ?>"><?php echo esc_html( STM_Helpers::STATUS_LABELS[ $b['status'] ] ); ?></span></td>
@@ -409,7 +447,7 @@ class STM_Schedule {
 					<?php if ( $b ) : ?>
 						<td class="name"><?php echo esc_html( $b['name'] ); ?><?php echo $b['email'] ? '<small>' . esc_html( $b['email'] ) . '</small>' : ''; ?></td>
 						<td><?php echo esc_html( $b['phone'] ); ?></td>
-						<td><?php echo esc_html( $b['package'] ); ?><?php echo $b['price'] ? '<small>' . esc_html( $b['price'] ) . ' lei</small>' : ''; ?></td>
+						<td><?php echo esc_html( $b['package'] ); ?><?php echo STM_Helpers::amount( $b ) > 0 ? '<small>' . esc_html( STM_Helpers::money( STM_Helpers::amount( $b ) ) ) . ( ! empty( $b['coupon'] ) ? ' (' . esc_html( $b['coupon'] ) . ')' : '' ) . '</small>' : ''; ?></td>
 						<td><?php echo (int) $b['people']; ?></td>
 						<td class="notes"><?php echo esc_html( $b['notes'] ); ?></td>
 						<td><span class="badge <?php echo esc_attr( $b['status'] ); ?>"><?php echo esc_html( STM_Helpers::STATUS_LABELS[ $b['status'] ] ); ?></span></td>
@@ -564,7 +602,7 @@ class STM_Schedule {
 				$b['phone'],
 				$b['email'],
 				$b['package'],
-				$b['price'],
+				STM_Helpers::amount( $b ),
 				(int) $b['people'],
 				$b['notes'],
 				isset( STM_Helpers::STATUS_LABELS[ $b['status'] ] ) ? STM_Helpers::STATUS_LABELS[ $b['status'] ] : $b['status'],

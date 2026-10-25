@@ -33,6 +33,15 @@ class STM_Rest {
 		);
 		register_rest_route(
 			self::NS,
+			'/coupon',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'coupon' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+		register_rest_route(
+			self::NS,
 			'/book',
 			array(
 				'methods'             => 'POST',
@@ -105,6 +114,55 @@ class STM_Rest {
 		return false;
 	}
 
+	/**
+	 * Verifică un cod de reducere pentru eveniment + pachet (+ email) și întoarce reducerea.
+	 */
+	public static function coupon( WP_REST_Request $request ) {
+		$in = $request->get_json_params();
+		if ( ! is_array( $in ) ) {
+			$in = $request->get_body_params();
+		}
+		$clean = array();
+		foreach ( array( 'code', 'theme', 'package', 'email' ) as $f ) {
+			$clean[ $f ] = isset( $in[ $f ] ) && is_scalar( $in[ $f ] ) ? sanitize_text_field( (string) $in[ $f ] ) : '';
+		}
+		if ( STM_Helpers::is_remote() ) {
+			$result = self::remote( '/coupon', array( 'timeout' => 10, 'headers' => array( 'Content-Type' => 'application/json' ), 'body' => wp_json_encode( $clean ) ) );
+			return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
+		}
+		if ( self::rate_limited() ) {
+			return new WP_Error( 'stm_limit', 'Prea multe încercări. Încearcă din nou mai târziu.', array( 'status' => 429 ) );
+		}
+		$theme = STM_Helpers::theme_public( absint( $clean['theme'] ) );
+		if ( ! $theme ) {
+			return new WP_Error( 'stm_theme', 'Evenimentul nu mai este disponibil.', array( 'status' => 404 ) );
+		}
+		$package = null;
+		foreach ( $theme['packages'] as $p ) {
+			if ( $p['id'] === (int) $clean['package'] ) {
+				$package = $p;
+			}
+		}
+		if ( ! $package ) {
+			return new WP_Error( 'stm_package', 'Alege un pachet.', array( 'status' => 400 ) );
+		}
+		$c = STM_Coupons::validate( $clean['code'], $theme['id'], $package['name'], $package['price'], sanitize_email( $clean['email'] ) );
+		if ( empty( $c['ok'] ) ) {
+			return new WP_Error( 'stm_coupon', $c['message'], array( 'status' => 400 ) );
+		}
+		return rest_ensure_response(
+			array(
+				'ok'       => true,
+				'code'     => $c['code'],
+				'label'    => $c['label'],
+				'price'    => $c['price'],
+				'discount' => $c['discount'],
+				'total'    => $c['total'],
+				'message'  => $c['message'],
+			)
+		);
+	}
+
 	public static function book( WP_REST_Request $request ) {
 		$in = $request->get_json_params();
 		if ( ! is_array( $in ) ) {
@@ -119,7 +177,7 @@ class STM_Rest {
 			return new WP_Error( 'stm_limit', 'Prea multe încercări. Încearcă din nou mai târziu sau sună-ne.', array( 'status' => 429 ) );
 		}
 
-		$fields = array( 'theme', 'date', 'time', 'package', 'name', 'phone', 'email', 'people', 'notes', 'consent' );
+		$fields = array( 'theme', 'date', 'time', 'package', 'name', 'phone', 'email', 'people', 'notes', 'consent', 'coupon' );
 		$clean  = array();
 		foreach ( $fields as $f ) {
 			$clean[ $f ] = isset( $in[ $f ] ) && is_scalar( $in[ $f ] ) ? (string) $in[ $f ] : '';
@@ -162,6 +220,9 @@ class STM_Rest {
 					'time'     => substr( $b['start'], 11, 5 ),
 					'package'  => $b['package'],
 					'price'    => STM_Helpers::price_label( $b['price'] ),
+					'coupon'   => $b['coupon'],
+					'discount' => '' !== (string) $b['discount'] ? STM_Helpers::money( $b['discount'] ) : '',
+					'total'    => STM_Helpers::money( STM_Helpers::amount( $b ) ),
 					'location' => $theme['location'],
 				),
 			)

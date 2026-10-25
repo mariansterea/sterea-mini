@@ -73,28 +73,57 @@ class STM_Themes {
 	public static function box_dates( $post ) {
 		$m = STM_Helpers::theme_meta( $post->ID );
 		wp_nonce_field( 'stm_theme_save', 'stm_theme_nonce' );
-		$days = $m['days'] ? $m['days'] : array(
-			array(
-				'date' => '',
-				'from' => '10:00',
-				'to'   => '16:00',
-			),
-		);
+		$days = array();
+		foreach ( $m['days'] as $d ) {
+			$days[ $d['date'] ] = array( 'from' => $d['from'], 'to' => $d['to'] );
+		}
+		$last = $m['days'] ? end( $m['days'] ) : array( 'from' => '12:00', 'to' => '17:00' );
+		$off  = array();
+		foreach ( STM_Helpers::days_off() as $d ) {
+			$off[] = array( 'from' => $d['from'], 'to' => $d['to'] ? $d['to'] : $d['from'], 'yearly' => ! empty( $d['yearly'] ), 'name' => $d['name'] );
+		}
+		$taken = array();
+		foreach ( array_keys( STM_Helpers::taken( $post->ID ) ) as $k ) {
+			$taken[ substr( $k, 0, 10 ) ] = isset( $taken[ substr( $k, 0, 10 ) ] ) ? $taken[ substr( $k, 0, 10 ) ] + 1 : 1;
+		}
 		?>
-		<table class="widefat stm-rows" data-stm-rows="days">
-			<thead><tr><th>Data</th><th>De la</th><th>Până la</th><th></th></tr></thead>
-			<tbody>
-			<?php foreach ( $days as $i => $d ) : ?>
-				<tr>
-					<td><input type="date" name="stm[days][<?php echo (int) $i; ?>][date]" value="<?php echo esc_attr( $d['date'] ); ?>"></td>
-					<td><input type="time" name="stm[days][<?php echo (int) $i; ?>][from]" value="<?php echo esc_attr( $d['from'] ); ?>"></td>
-					<td><input type="time" name="stm[days][<?php echo (int) $i; ?>][to]" value="<?php echo esc_attr( $d['to'] ); ?>"></td>
-					<td><button type="button" class="button-link stm-remove" aria-label="Șterge rândul">✕</button></td>
-				</tr>
-			<?php endforeach; ?>
-			</tbody>
-		</table>
-		<p><button type="button" class="button stm-add" data-stm-target="days">+ Adaugă o zi</button></p>
+		<div class="stm-avail" id="stm-avail"
+			data-days="<?php echo esc_attr( wp_json_encode( $days ) ); ?>"
+			data-off="<?php echo esc_attr( wp_json_encode( $off ) ); ?>"
+			data-taken="<?php echo esc_attr( wp_json_encode( $taken ) ); ?>"
+			data-blocked="<?php echo esc_attr( wp_json_encode( array_values( (array) $m['blocked'] ) ) ); ?>">
+			<div class="stm-avail-tools">
+				<div class="stm-avail-default">
+					<strong>Ore implicite</strong>
+					<label>de la <input type="time" id="stm-def-from" value="<?php echo esc_attr( $last['from'] ); ?>"></label>
+					<label>până la <input type="time" id="stm-def-to" value="<?php echo esc_attr( $last['to'] ); ?>"></label>
+					<span class="description">Click pe o zi din calendar o pornește cu aceste ore; încă un click o oprește.</span>
+				</div>
+				<details class="stm-avail-range">
+					<summary class="button">+ Adaugă interval de zile</summary>
+					<div class="stm-avail-range-body">
+						<label>De la <input type="date" id="stm-rg-from"></label>
+						<label>până la <input type="date" id="stm-rg-to"></label>
+						<span class="stm-avail-wd">
+							<?php foreach ( array( 1 => 'Lu', 2 => 'Ma', 3 => 'Mi', 4 => 'Jo', 5 => 'Vi', 6 => 'Sâ', 0 => 'Du' ) as $n => $l ) : ?>
+								<label><input type="checkbox" class="stm-rg-wd" value="<?php echo (int) $n; ?>" <?php checked( in_array( $n, array( 6, 0 ), true ) ); ?>> <?php echo esc_html( $l ); ?></label>
+							<?php endforeach; ?>
+						</span>
+						<label>ore <input type="time" id="stm-rg-start" value="<?php echo esc_attr( $last['from'] ); ?>"> – <input type="time" id="stm-rg-end" value="<?php echo esc_attr( $last['to'] ); ?>"></label>
+						<button type="button" class="button button-primary" id="stm-rg-add">Adaugă zilele</button>
+					</div>
+				</details>
+			</div>
+			<div class="stm-cal-wrap" id="stm-cal-wrap"></div>
+			<div class="stm-avail-legend">
+				<span><i class="stm-lg stm-lg-on"></i> zi cu ședințe</span>
+				<span><i class="stm-lg stm-lg-taken"></i> are rezervări</span>
+				<span><i class="stm-lg stm-lg-off"></i> zi liberă (din Setări)</span>
+				<span><i class="stm-lg stm-lg-past"></i> trecut</span>
+			</div>
+			<div class="stm-avail-summary" id="stm-avail-summary"></div>
+			<div id="stm-days-inputs"></div>
+		</div>
 		<table class="form-table">
 			<tr>
 				<th><label for="stm-duration">Durata unei ședințe</label></th>
@@ -111,7 +140,11 @@ class STM_Themes {
 			</tr>
 			<tr>
 				<th>Rezervări</th>
-				<td><label><input type="hidden" name="stm[open]" value="0"><input type="checkbox" name="stm[open]" value="1" <?php checked( $m['open'] ); ?>> Deschise (debifează ca să oprești temporar rezervările)</label></td>
+				<td><label><input type="hidden" name="stm[open]" value="0"><input type="checkbox" name="stm[open]" value="1" <?php checked( $m['open'] ); ?>> Deschise (debifează ca să oprești temporar rezervările)</label>
+				<?php if ( ! empty( $m['blocked'] ) ) : ?>
+					<p class="description"><?php echo count( (array) $m['blocked'] ); ?> ore blocate manual (se gestionează din „Programul zilei”).</p>
+				<?php endif; ?>
+				</td>
 			</tr>
 		</table>
 		<?php
@@ -197,6 +230,7 @@ class STM_Themes {
 			'open'       => empty( $in['open'] ) ? 0 : 1,
 			'days'       => array(),
 			'packages'   => array(),
+			'blocked'    => STM_Helpers::blocked( $post_id ), // se editează doar din Programul zilei
 		);
 
 		foreach ( (array) ( isset( $in['days'] ) ? $in['days'] : array() ) as $d ) {

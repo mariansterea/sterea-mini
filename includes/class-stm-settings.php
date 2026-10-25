@@ -12,6 +12,14 @@ class STM_Settings {
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_init', array( __CLASS__, 'register' ) );
+		add_action(
+			'admin_enqueue_scripts',
+			function ( $hook ) {
+				if ( false !== strpos( $hook, 'stm-settings' ) ) {
+					wp_enqueue_script( 'stm-admin', STM_URL . 'assets/js/admin.js', array(), STM_VERSION, true );
+				}
+			}
+		);
 	}
 
 	public static function menu() {
@@ -42,6 +50,29 @@ class STM_Settings {
 			'info_text'     => sanitize_textarea_field( isset( $in['info_text'] ) ? $in['info_text'] : '' ),
 			'reminders'     => empty( $in['reminders'] ) ? 0 : 1,
 			'accent'        => sanitize_hex_color( isset( $in['accent'] ) ? $in['accent'] : '' ),
+			'days_off'      => array(),
+		);
+		foreach ( (array) ( isset( $in['days_off'] ) ? $in['days_off'] : array() ) as $d ) {
+			$from = sanitize_text_field( isset( $d['from'] ) ? $d['from'] : '' );
+			$to   = sanitize_text_field( isset( $d['to'] ) ? $d['to'] : '' );
+			if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $from ) ) {
+				continue;
+			}
+			if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $to ) || $to < $from ) {
+				$to = $from;
+			}
+			$out['days_off'][] = array(
+				'name'   => sanitize_text_field( isset( $d['name'] ) ? $d['name'] : '' ),
+				'from'   => $from,
+				'to'     => $to,
+				'yearly' => empty( $d['yearly'] ) ? 0 : 1,
+			);
+		}
+		usort(
+			$out['days_off'],
+			function ( $a, $b ) {
+				return strcmp( $a['from'], $b['from'] );
+			}
 		);
 		if ( ! $out['accent'] ) {
 			$out['accent'] = STM_Helpers::defaults()['accent'];
@@ -137,6 +168,25 @@ class STM_Settings {
 						<td><input type="color" id="stm-accent" name="<?php echo esc_attr( self::name( 'accent' ) ); ?>" value="<?php echo esc_attr( $s['accent'] ); ?>"></td>
 					</tr>
 				</table>
+
+				<h2>Zile libere</h2>
+				<p class="description">Zile în care nu se fac ședințe la niciun eveniment (sărbători, concediu). Nu apar în formular chiar dacă sunt în programul unui eveniment.</p>
+				<?php $days_off = $s['days_off'] ? $s['days_off'] : array( array( 'name' => '', 'from' => '', 'to' => '', 'yearly' => 0 ) ); ?>
+				<table class="widefat stm-rows stm-off-rows" data-stm-rows="days_off" style="max-width:760px">
+					<thead><tr><th>Nume</th><th>De la</th><th>Până la</th><th>În fiecare an</th><th></th></tr></thead>
+					<tbody>
+					<?php foreach ( $days_off as $i => $d ) : ?>
+						<tr>
+							<td><input type="text" name="<?php echo esc_attr( self::name( 'days_off' ) ); ?>[<?php echo (int) $i; ?>][name]" value="<?php echo esc_attr( $d['name'] ); ?>" placeholder="Crăciun"></td>
+							<td><input type="date" name="<?php echo esc_attr( self::name( 'days_off' ) ); ?>[<?php echo (int) $i; ?>][from]" value="<?php echo esc_attr( $d['from'] ); ?>"></td>
+							<td><input type="date" name="<?php echo esc_attr( self::name( 'days_off' ) ); ?>[<?php echo (int) $i; ?>][to]" value="<?php echo esc_attr( $d['to'] ); ?>"></td>
+							<td><input type="checkbox" name="<?php echo esc_attr( self::name( 'days_off' ) ); ?>[<?php echo (int) $i; ?>][yearly]" value="1" <?php checked( ! empty( $d['yearly'] ) ); ?>></td>
+							<td><button type="button" class="button-link stm-remove" aria-label="Șterge rândul">✕</button></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+				<p><button type="button" class="button stm-add" data-stm-target="days_off">+ Adaugă zi liberă</button></p>
 
 				<h2>Cum îl folosești</h2>
 				<ol>

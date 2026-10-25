@@ -11,7 +11,7 @@ class STM_Bookings {
 
 	const DB_VERSION = '1';
 
-	const FIELDS = array( 'theme', 'start', 'status', 'package', 'price', 'name', 'phone', 'email', 'people', 'notes', 'token', 'source', 'reminded' );
+	const FIELDS = array( 'theme', 'start', 'status', 'package', 'price', 'name', 'phone', 'email', 'people', 'notes', 'token', 'source', 'reminded', 'coupon', 'discount', 'total' );
 
 	public static function locks_table() {
 		global $wpdb;
@@ -34,6 +34,8 @@ class STM_Bookings {
 		add_filter( 'post_row_actions', array( __CLASS__, 'row_actions' ), 10, 2 );
 		add_action( 'admin_post_stm_status', array( __CLASS__, 'handle_status' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'notices' ) );
+		add_filter( 'bulk_actions-edit-' . STM_Helpers::CPT_BOOKING, array( __CLASS__, 'bulk_actions' ) );
+		add_filter( 'handle_bulk_actions-edit-' . STM_Helpers::CPT_BOOKING, array( __CLASS__, 'handle_bulk' ), 10, 3 );
 	}
 
 	/* ---------- Setup ---------- */
@@ -199,6 +201,21 @@ class STM_Bookings {
 			return new WP_Error( 'stm_consent', 'Bifează acordul pentru prelucrarea datelor.', array( 'status' => 400 ) );
 		}
 
+		// Cupon de reducere (opțional): se validează pe server, reducerea se salvează în rezervare.
+		$coupon   = '';
+		$discount = '';
+		$total    = '';
+		$code     = isset( $in['coupon'] ) ? STM_Coupons::normalize( $in['coupon'] ) : '';
+		if ( '' !== $code ) {
+			$c = STM_Coupons::validate( $code, $theme_id, $package['name'], $package['price'], $email );
+			if ( empty( $c['ok'] ) ) {
+				return new WP_Error( 'stm_coupon', 'Cod de reducere: ' . $c['message'], array( 'status' => 400 ) );
+			}
+			$coupon   = $c['code'];
+			$discount = $c['discount'];
+			$total    = $c['total'];
+		}
+
 		$start = $date . ' ' . $time;
 		if ( ! self::lock( $theme_id, $start, 0 ) ) {
 			return new WP_Error( 'stm_taken', 'Ne pare rău, ora aceasta tocmai a fost rezervată. Te rugăm să alegi alta.', array( 'status' => 409 ) );
@@ -218,6 +235,9 @@ class STM_Bookings {
 			'token'    => wp_generate_password( 32, false, false ),
 			'source'   => sanitize_text_field( isset( $in['source'] ) ? $in['source'] : wp_parse_url( home_url(), PHP_URL_HOST ) ),
 			'reminded' => 0,
+			'coupon'   => $coupon,
+			'discount' => $discount,
+			'total'    => $total,
 		);
 
 		$id = wp_insert_post(
@@ -320,6 +340,15 @@ class STM_Bookings {
 		if ( ! $b['status'] ) {
 			$b['status'] = 'confirmed';
 			$b['people'] = 1;
+			// Venit din „Programul zilei” (+ Rezervare manuală): evenimentul, ziua și ora sunt deja alese.
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended
+			if ( ! empty( $_GET['stm_theme'] ) ) {
+				$b['theme'] = absint( $_GET['stm_theme'] );
+			}
+			if ( ! empty( $_GET['stm_date'] ) && ! empty( $_GET['stm_time'] ) ) {
+				$b['start'] = sanitize_text_field( wp_unslash( $_GET['stm_date'] ) ) . ' ' . sanitize_text_field( wp_unslash( $_GET['stm_time'] ) );
+			}
+			// phpcs:enable
 		}
 		$themes = get_posts(
 			array(
@@ -349,6 +378,13 @@ class STM_Bookings {
 			<tr>
 				<th><label for="stm-b-package">Pachet</label></th>
 				<td><input type="text" id="stm-b-package" class="regular-text" name="stmb[package]" value="<?php echo esc_attr( $b['package'] ); ?>"> Preț <input type="text" class="small-text" name="stmb[price]" value="<?php echo esc_attr( $b['price'] ); ?>"> lei</td>
+			</tr>
+			<tr>
+				<th><label for="stm-b-coupon">Reducere</label></th>
+				<td>cod <input type="text" id="stm-b-coupon" class="small-text" name="stmb[coupon]" value="<?php echo esc_attr( $b['coupon'] ); ?>" placeholder="opțional">
+					reducere <input type="text" class="small-text" name="stmb[discount]" value="<?php echo esc_attr( $b['discount'] ); ?>"> lei
+					<?php if ( '' !== (string) $b['total'] ) : ?><span class="description">Total de plată: <strong><?php echo esc_html( STM_Helpers::money( $b['total'] ) ); ?></strong></span><?php endif; ?>
+					<p class="description">Scrie codul și suma redusă (ex. 60) dacă vrei să aplici manual un cupon; totalul se calculează la salvare.</p></td>
 			</tr>
 			<tr>
 				<th><label for="stm-b-name">Nume</label></th>
@@ -412,6 +448,10 @@ class STM_Bookings {
 		$new['email']   = sanitize_email( isset( $in['email'] ) ? $in['email'] : '' );
 		$new['people']  = max( 1, absint( isset( $in['people'] ) ? $in['people'] : 1 ) );
 		$new['notes']   = sanitize_textarea_field( isset( $in['notes'] ) ? $in['notes'] : '' );
+		$new['coupon']  = STM_Coupons::normalize( isset( $in['coupon'] ) ? $in['coupon'] : '' );
+		$disc           = trim( (string) ( isset( $in['discount'] ) ? $in['discount'] : '' ) );
+		$new['discount'] = '' === $disc ? '' : max( 0, STM_Helpers::to_number( $disc ) );
+		$new['total']   = '' === $disc ? '' : max( 0, round( STM_Helpers::to_number( $new['price'] ) - $new['discount'], 2 ) );
 		$status         = isset( $in['status'] ) && isset( STM_Helpers::STATUS_LABELS[ $in['status'] ] ) ? $in['status'] : 'confirmed';
 
 		if ( $is_new ) {
@@ -546,6 +586,9 @@ class STM_Bookings {
 				if ( $b['price'] ) {
 					echo '<br><span class="stm-muted">' . esc_html( STM_Helpers::price_label( $b['price'] ) ) . '</span>';
 				}
+				if ( '' !== (string) $b['discount'] && (float) $b['discount'] > 0 ) {
+					echo '<br><span class="stm-muted">cupon ' . esc_html( $b['coupon'] ) . ' −' . esc_html( STM_Helpers::money( $b['discount'] ) ) . ' → <strong>' . esc_html( STM_Helpers::money( $b['total'] ) ) . '</strong></span>';
+				}
 				if ( $b['notes'] ) {
 					echo '<br><span class="stm-muted" title="' . esc_attr( $b['notes'] ) . '">📝 ' . esc_html( wp_trim_words( $b['notes'], 8 ) ) . '</span>';
 				}
@@ -554,13 +597,56 @@ class STM_Bookings {
 				echo (int) $b['people'];
 				break;
 			case 'stm_status':
-				$label = isset( STM_Helpers::STATUS_LABELS[ $b['status'] ] ) ? STM_Helpers::STATUS_LABELS[ $b['status'] ] : $b['status'];
-				echo '<span class="stm-badge stm-badge--' . esc_attr( $b['status'] ) . '">' . esc_html( $label ) . '</span>';
+				echo self::status_cell( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție.
 				break;
 			case 'stm_source':
 				echo esc_html( 'admin' === $b['source'] ? 'Adăugată manual' : $b['source'] );
 				break;
 		}
+	}
+
+	/**
+	 * Badge de status + butoane rapide (Confirmă / Anulează). HTML deja escapat.
+	 */
+	public static function status_cell( $b ) {
+		$label = isset( STM_Helpers::STATUS_LABELS[ $b['status'] ] ) ? STM_Helpers::STATUS_LABELS[ $b['status'] ] : $b['status'];
+		$html  = '<span class="stm-badge stm-badge--' . esc_attr( $b['status'] ) . '">' . esc_html( $label ) . '</span>';
+		if ( ! current_user_can( 'edit_post', $b['id'] ) ) {
+			return $html;
+		}
+		$url = function ( $to ) use ( $b ) {
+			return wp_nonce_url( admin_url( 'admin-post.php?action=stm_status&id=' . $b['id'] . '&to=' . $to ), 'stm_status_' . $b['id'] );
+		};
+		$btn = array();
+		if ( 'pending' === $b['status'] ) {
+			$btn[] = '<a class="button stm-ok" href="' . esc_url( $url( 'confirmed' ) ) . '">✓ Confirmă</a>';
+		}
+		if ( 'cancelled' === $b['status'] ) {
+			$btn[] = '<a class="button" href="' . esc_url( $url( 'confirmed' ) ) . '" title="Reactivează, dacă ora e încă liberă">Reactivează</a>';
+		} else {
+			$btn[] = '<a class="button stm-no" href="' . esc_url( $url( 'cancelled' ) ) . '" onclick="return confirm(\'Anulezi rezervarea? Clientul primește un email.\')">✕ Anulează</a>';
+		}
+		return $html . '<div class="stm-quick">' . implode( '', $btn ) . '</div>';
+	}
+
+	public static function bulk_actions( $actions ) {
+		unset( $actions['edit'] );
+		$actions['stm_confirm'] = 'Confirmă';
+		$actions['stm_cancel']  = 'Anulează (clientul primește email)';
+		return $actions;
+	}
+
+	public static function handle_bulk( $redirect, $action, $ids ) {
+		if ( 'stm_confirm' !== $action && 'stm_cancel' !== $action ) {
+			return $redirect;
+		}
+		$to = 'stm_confirm' === $action ? 'confirmed' : 'cancelled';
+		foreach ( $ids as $id ) {
+			if ( current_user_can( 'edit_post', $id ) ) {
+				self::set_status( (int) $id, $to );
+			}
+		}
+		return add_query_arg( 'stm_done', 1, $redirect );
 	}
 
 	public static function sortable( $columns ) {

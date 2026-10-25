@@ -30,6 +30,7 @@ class STM_Helpers {
 			'info_text'     => "Te rugăm să ajungi cu 10 minute înainte.\nÎți recomandăm haine în culori neutre, potrivite cu decorul.",
 			'reminders'     => 1,
 			'accent'        => '#be9656',
+			'days_off'      => array(),
 		);
 	}
 
@@ -65,6 +66,7 @@ class STM_Helpers {
 			'max_people' => 6,
 			'open'      => 1,
 			'days'      => array(),
+			'blocked'   => array(),
 			'packages'  => array(
 				array(
 					'name'  => 'Ședință foto 30 min',
@@ -83,6 +85,78 @@ class STM_Helpers {
 	public static function theme_meta( $id ) {
 		$meta = get_post_meta( $id, '_stm', true );
 		return wp_parse_args( is_array( $meta ) ? $meta : array(), self::theme_defaults() );
+	}
+
+	/**
+	 * Zile libere globale (din Setări): [ { name, from, to, yearly } ].
+	 */
+	public static function days_off() {
+		$list = self::get( 'days_off' );
+		return is_array( $list ) ? $list : array();
+	}
+
+	/**
+	 * Ziua este liberă (închisă pentru toate evenimentele)?
+	 */
+	public static function is_day_off( $ymd ) {
+		foreach ( self::days_off() as $d ) {
+			$from = isset( $d['from'] ) ? $d['from'] : '';
+			$to   = isset( $d['to'] ) && $d['to'] ? $d['to'] : $from;
+			if ( ! $from ) {
+				continue;
+			}
+			if ( ! empty( $d['yearly'] ) ) {
+				$md = substr( $ymd, 5 );
+				if ( $md >= substr( $from, 5 ) && $md <= substr( $to, 5 ) ) {
+					return true;
+				}
+			} elseif ( $ymd >= $from && $ymd <= $to ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Ore blocate manual ale unui eveniment: [ 'Y-m-d H:i', ... ].
+	 */
+	public static function blocked( $theme_id ) {
+		$meta = self::theme_meta( $theme_id );
+		return is_array( $meta['blocked'] ) ? array_values( $meta['blocked'] ) : array();
+	}
+
+	public static function set_blocked( $theme_id, $list ) {
+		$meta            = self::theme_meta( $theme_id );
+		$meta['blocked'] = array_values( array_unique( array_filter( array_map( 'strval', (array) $list ) ) ) );
+		sort( $meta['blocked'] );
+		update_post_meta( $theme_id, '_stm', $meta );
+	}
+
+	/**
+	 * Număr dintr-un preț scris liber („600”, „600 lei”, „1.100,50”).
+	 */
+	public static function to_number( $price ) {
+		$p = str_replace( array( ' ', "\xc2\xa0" ), '', (string) $price );
+		if ( preg_match( '/^\d{1,3}(\.\d{3})+(,\d+)?$/', $p ) ) {
+			$p = str_replace( '.', '', $p );
+		}
+		$p = str_replace( ',', '.', $p );
+		return (float) preg_replace( '/[^0-9.]/', '', $p );
+	}
+
+	/**
+	 * Suma de plată a unei rezervări: totalul cu reducere, dacă există, altfel prețul.
+	 */
+	public static function amount( $b ) {
+		if ( isset( $b['total'] ) && '' !== (string) $b['total'] ) {
+			return (float) $b['total'];
+		}
+		return self::to_number( isset( $b['price'] ) ? $b['price'] : '' );
+	}
+
+	public static function money( $n ) {
+		$n = (float) $n;
+		return ( floor( $n ) == $n ? number_format( $n, 0, ',', '.' ) : number_format( $n, 2, ',', '.' ) ) . ' lei';
 	}
 
 	public static function now() {
@@ -148,15 +222,16 @@ class STM_Helpers {
 
 		$days = array();
 		foreach ( (array) $meta['days'] as $day ) {
-			if ( empty( $day['date'] ) || $day['date'] < $now->format( 'Y-m-d' ) ) {
+			if ( empty( $day['date'] ) || $day['date'] < $now->format( 'Y-m-d' ) || self::is_day_off( $day['date'] ) ) {
 				continue;
 			}
-			$slots = array();
+			$blocked = is_array( $meta['blocked'] ) ? $meta['blocked'] : array();
+			$slots   = array();
 			foreach ( self::day_slots( $meta, $day ) as $time ) {
 				$key = $day['date'] . ' ' . $time;
 				if ( isset( $taken[ $key ] ) ) {
 					$state = 'taken';
-				} elseif ( $key <= $cutoff || empty( $meta['open'] ) ) {
+				} elseif ( $key <= $cutoff || empty( $meta['open'] ) || in_array( $key, $blocked, true ) ) {
 					$state = 'closed';
 				} else {
 					$state = 'free';

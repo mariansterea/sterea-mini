@@ -65,6 +65,10 @@ class STM_Emails {
 			'Persoane' => (int) $b['people'],
 			'Locație'  => trim( $theme['location'] . ( $theme['address'] ? ', ' . $theme['address'] : '' ) ),
 		);
+		if ( ! empty( $b['coupon'] ) && '' !== (string) $b['discount'] && (float) $b['discount'] > 0 ) {
+			$rows['Reducere'] = $b['coupon'] . ': −' . STM_Helpers::money( $b['discount'] );
+			$rows['Total']    = STM_Helpers::money( $b['total'] );
+		}
 		$html = '<table cellpadding="6" style="border-collapse:collapse;font-size:15px">';
 		foreach ( $rows as $label => $value ) {
 			$html .= '<tr><td style="color:#667085;padding-right:16px">' . esc_html( $label ) . '</td><td><strong>' . esc_html( $value ) . '</strong></td></tr>';
