@@ -29,7 +29,7 @@ class STM_Helpers {
 			'success_text'  => 'Mulțumim! Rezervarea a fost înregistrată. Vei primi un email cu toate detaliile.',
 			'info_text'     => "Te rugăm să ajungi cu 10 minute înainte.\nÎți recomandăm haine în culori neutre, potrivite cu decorul.",
 			'reminders'     => 1,
-			'accent'        => '#2f5d50',
+			'accent'        => '#be9656',
 		);
 	}
 
