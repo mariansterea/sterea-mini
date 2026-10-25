@@ -83,7 +83,9 @@
 		this.el = h('section', { class: 'stm-card' });
 		this.theme = theme;
 		this.step = 0;
-		this.sel = { pkg: theme.packages.length === 1 ? theme.packages[0].id : null, people: Math.min(2, Math.max(1, theme.max_people || 1)), date: null, time: null, first: '', last: '', email: '', phone: '', notes: '', consent: false };
+		this.sel = { pkg: theme.packages.length === 1 ? theme.packages[0].id : null, people: Math.min(2, Math.max(1, theme.max_people || 1)), date: null, time: null, first: '', last: '', email: '', phone: '', notes: '', consent: false, coupon: '' };
+		this.coupon = null; // { code, label, discount, total } după validare pe server
+		this.couponMsg = '';
 		this.errors = {};
 		this.alert = '';
 		this.busy = false;
@@ -185,6 +187,7 @@
 			people: String(s.people),
 			notes: s.notes.trim(),
 			consent: s.consent ? '1' : '',
+			coupon: this.coupon ? this.coupon.code : '',
 			website: this.hp ? this.hp.value : ''
 		};
 		api(this.root, '/book', '', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(data) })
@@ -201,6 +204,7 @@
 				var code = err.code || '';
 				if (code === 'stm_taken' || code === 'stm_closed' || code === 'stm_slot') { self.sel.time = null; self.step = 1; self.reload(); }
 				else if (code === 'stm_package') self.step = 0;
+				else if (code === 'stm_coupon') { self.coupon = null; self.sel.coupon = ''; self.couponMsg = err.message; self.alert = ''; }
 				else if (code === 'stm_name') { self.step = 2; self.errors.first = err.message; }
 				else if (code === 'stm_phone' || code === 'stm_email' || code === 'stm_consent') { self.step = 2; self.errors[code.slice(4)] = err.message; }
 				self.render();
@@ -293,7 +297,7 @@
 			return h('button', {
 				type: 'button', role: 'radio', 'aria-checked': s.pkg === p.id ? 'true' : 'false',
 				class: 'stm-package' + (s.pkg === p.id ? ' is-selected' : ''),
-				onclick: function () { s.pkg = p.id; self.render(); }
+				onclick: function () { s.pkg = p.id; self.coupon = null; self.couponMsg = ''; self.render(); }
 			}, [
 				h('span', { class: 'stm-radio' }),
 				h('span', null, [h('div', { class: 'stm-package-name', text: p.name }), p.desc ? h('div', { class: 'stm-package-desc', text: p.desc }) : null]),
@@ -434,13 +438,45 @@
 		].filter(function (r) { return r[1]; });
 	};
 
+	App.prototype.applyCoupon = function () {
+		var self = this, s = this.sel, code = (s.coupon || '').trim();
+		if (!code) { this.coupon = null; this.couponMsg = ''; this.render(); return; }
+		this.couponBusy = true;
+		this.render();
+		api(this.root, '/coupon', '', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ code: code, theme: this.theme.id, package: s.pkg, email: s.email.trim() }) })
+			.then(function (res) { self.couponBusy = false; self.coupon = res; self.sel.coupon = res.code; self.couponMsg = ''; self.render(); })
+			.catch(function (err) { self.couponBusy = false; self.coupon = null; self.couponMsg = err.message; self.render(); });
+	};
+
 	App.prototype.renderConfirm = function () {
-		var p = this.pkg();
+		var self = this, s = this.sel, p = this.pkg(), c = this.coupon;
+		var hasPrice = !!(p && priceLabel(p.price));
+		var input = h('input', { class: 'stm-input', type: 'text', placeholder: 'Codul tău', autocomplete: 'off', disabled: !!c,
+			oninput: function (ev) { s.coupon = ev.target.value.toUpperCase(); },
+			onkeydown: function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); self.applyCoupon(); } } });
+		input.value = s.coupon || '';
+		var couponBox = hasPrice ? h('div', { class: 'stm-coupon' }, [
+			h('label', { class: 'stm-label', text: 'Ai un cod de reducere?' }),
+			h('div', { class: 'stm-coupon-row' }, [
+				input,
+				c ? h('button', { type: 'button', class: 'stm-btn stm-btn-ghost', text: 'Renunță', onclick: function () { self.coupon = null; s.coupon = ''; self.couponMsg = ''; self.render(); } })
+				  : h('button', { type: 'button', class: 'stm-btn stm-btn-ghost', text: this.couponBusy ? '…' : 'Aplică', disabled: !!this.couponBusy, onclick: function () { self.applyCoupon(); } })
+			]),
+			this.couponMsg ? h('div', { class: 'stm-error', text: this.couponMsg }) : null,
+			c ? h('div', { class: 'stm-coupon-ok', text: 'Cod ' + c.code + ' aplicat (' + c.label + ').' }) : null
+		]) : null;
+		var total = null;
+		if (hasPrice) {
+			total = c
+				? h('div', { class: 'stm-total' }, [h('span', null, ['Total ', h('s', { text: priceLabel(p.price) })]), h('em', { text: priceLabel(String(c.total)) })])
+				: h('div', { class: 'stm-total' }, ['Total', h('em', { text: priceLabel(p.price) })]);
+		}
 		return h('div', null, [
 			h('div', { class: 'stm-summary' }, this.summaryRows().map(function (r) {
 				return h('div', { class: 'stm-summary-row' }, [h('span', { text: r[0] }), h('strong', { text: r[1] })]);
 			})),
-			p && p.price ? h('div', { class: 'stm-total' }, ['Total', h('em', { text: priceLabel(p.price) })]) : null,
+			couponBox,
+			total,
 			h('p', { class: 'stm-hint', text: 'Verifică datele și apasă „Trimite rezervarea”. Primești un email cu toate detaliile.' })
 		]);
 	};
@@ -452,7 +488,9 @@
 			['Pachet', (sm.package || '') + (sm.price ? ' · ' + sm.price : '')],
 			['Data', sm.date || this.dayLabel(s.date)],
 			['Ora', (sm.time || s.time) + ' – ' + addMinutes(sm.time || s.time, t.duration)],
-			['Locație', sm.location || t.location]
+			['Locație', sm.location || t.location],
+			['Reducere', sm.coupon && sm.discount ? sm.coupon + ': −' + sm.discount : ''],
+			['Total', sm.discount ? sm.total : '']
 		].filter(function (x) { return x[1]; });
 		var actions = [
 			h('a', { class: 'stm-btn', href: gcalLink(t, s.date, s.time), target: '_blank', rel: 'noopener', text: 'Adaugă în Google Calendar' }),
