@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.7.0
+Stable tag: 1.7.1
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -43,6 +43,9 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 8. WordPress → Mini-ședințe → Setări → Google Calendar: bifează sincronizarea, lipește ID-ul calendarului și conținutul fișierului .json → Salvează → „Testează conexiunea” → „Pune în calendar rezervările viitoare”.
 
 == Istoric versiuni ==
+
+= 1.7.1 (2026-10-27) =
+* Reparat: filtrele din Dashboard și Programul zilei dădeau „Cannot load stm-dashboard” când pagina era deschisă din meniul lateral (formularele trimit acum la adresa corectă).
 
 = 1.7.0 (2026-10-25) =
 * Sincronizare cu Google Calendar printr-un cont de serviciu: rezervare nouă → eveniment cu numele, telefonul, emailul, pachetul, reducerea și observațiile clientului; mutare / confirmare → actualizare (verde = confirmată, galben = în așteptare); anulare (de client sau din admin) → evenimentul dispare. Setări → Google Calendar, cu „Testează conexiunea” și „Pune în calendar rezervările viitoare”.

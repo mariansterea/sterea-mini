@@ -169,7 +169,7 @@ class STM_Dashboard {
 		?>
 		<div class="wrap stm-dash">
 			<h1>Mini-ședințe</h1>
-			<form method="get" class="stm-dash-filters">
+			<form method="get" action="<?php echo esc_url( admin_url( 'edit.php' ) ); ?>" class="stm-dash-filters">
 				<input type="hidden" name="post_type" value="<?php echo esc_attr( STM_Helpers::CPT_THEME ); ?>">
 				<input type="hidden" name="page" value="stm-dashboard">
 				<select name="stm_theme" onchange="this.form.submit()">

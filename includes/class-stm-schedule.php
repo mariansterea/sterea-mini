@@ -63,7 +63,7 @@ class STM_Schedule {
 				return;
 			endif;
 			?>
-			<form method="get" class="stm-noprint">
+			<form method="get" action="<?php echo esc_url( admin_url( 'edit.php' ) ); ?>" class="stm-noprint">
 				<input type="hidden" name="post_type" value="<?php echo esc_attr( STM_Helpers::CPT_THEME ); ?>">
 				<input type="hidden" name="page" value="stm-schedule">
 				<select name="day" onchange="this.form.submit()">
