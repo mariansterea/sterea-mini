@@ -187,6 +187,11 @@ class STM_Themes {
 				<td><input type="url" id="stm-map" class="large-text" name="stm[map_url]" value="<?php echo esc_attr( $m['map_url'] ); ?>" placeholder="https://maps.app.goo.gl/..."></td>
 			</tr>
 			<tr>
+				<th><label for="stm-client-info">Informații pentru client</label></th>
+				<td><textarea id="stm-client-info" class="large-text" rows="6" name="stm[client_info]" placeholder="Ex: Veniți cu 10 minute înainte. Parcarea e în curte. Merg culorile calde, pulovere tricotate..."><?php echo esc_textarea( $m['client_info'] ); ?></textarea>
+				<p class="description">Apare în emailurile de confirmare și de reamintire și în emailurile cardurilor cadou pentru acest eveniment: cum să se pregătească, cu cât timp înainte să vină, parcare, ce primesc. Gol = textul general din Setări.</p></td>
+			</tr>
+			<tr>
 				<th><label for="stm-people">Persoane într-o ședință</label></th>
 				<td><input type="number" id="stm-people" min="1" name="stm[max_people]" value="<?php echo (int) $m['max_people']; ?>" class="small-text"> maximum</td>
 			</tr>
@@ -223,6 +228,7 @@ class STM_Themes {
 			'location'   => sanitize_text_field( isset( $in['location'] ) ? $in['location'] : '' ),
 			'address'    => sanitize_text_field( isset( $in['address'] ) ? $in['address'] : '' ),
 			'map_url'    => esc_url_raw( isset( $in['map_url'] ) ? $in['map_url'] : '' ),
+			'client_info' => sanitize_textarea_field( isset( $in['client_info'] ) ? $in['client_info'] : '' ),
 			'duration'   => max( 5, absint( isset( $in['duration'] ) ? $in['duration'] : 30 ) ),
 			'buffer'     => absint( isset( $in['buffer'] ) ? $in['buffer'] : 0 ),
 			'deadline'   => absint( isset( $in['deadline'] ) ? $in['deadline'] : 0 ),

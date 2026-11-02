@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.8.3
+Stable tag: 1.8.4
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -55,6 +55,12 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.8.4 (2026-11-03) =
+* Emailurile către clienți (confirmare, reamintire, comanda cardului cadou, cardul cadou) au acum: butonul Google Maps, informațiile evenimentului (cum să se pregătească, cu cât timp înainte să vină, parcare) și contactul fotografului cu telefon și WhatsApp.
+* Câmp nou la eveniment: „Informații pentru client”. Gol = textul general din Setări.
+* Imaginea cardului cadou vine în email (inline), nu de pe site, deci se vede mereu; PDF-ul rămâne atașat.
+* După actualizarea pluginului se golesc automat cache-ul și fișierele minificate (WP Rocket, LiteSpeed), ca formularul să ia imediat stilurile noi.
 
 = 1.8.3 (2026-11-03) =
 * Modelul cardului de sub „Oferă cadou” e acum mare, pe toată lățimea opțiunii, cu textul „Așa arată cardul cadou” dedesubt.

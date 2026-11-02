@@ -588,8 +588,16 @@ class STM_Giftcards {
 		return array_filter( array_map( 'trim', explode( ',', (string) STM_Helpers::get( 'notify_email' ) ) ), 'is_email' );
 	}
 
-	private static function send( $to, $subject, $html, $attachments = array(), $reply_to = '' ) {
-		return STM_Helpers::mail( $to, $subject, $html, $reply_to, $attachments );
+	private static function send( $to, $subject, $html, $attachments = array(), $reply_to = '', $embeds = array() ) {
+		return STM_Helpers::mail( $to, $subject, $html, $reply_to, $attachments, $embeds );
+	}
+
+	/**
+	 * Locul ședinței (Google Maps), cum să se pregătească și contactul, pentru cardurile pe un eveniment.
+	 */
+	private static function details_block( $m ) {
+		$theme = 'package' === $m['kind'] ? (int) $m['theme'] : 0;
+		return STM_Helpers::event_block( $theme ) . STM_Helpers::contact_block();
 	}
 
 	private static function instant() {
@@ -648,14 +656,11 @@ class STM_Giftcards {
 			return;
 		}
 		$m     = self::meta( $id );
-		$phone = trim( (string) STM_Helpers::get( 'contact_phone' ) );
 		$body  = '<p>Bună, ' . esc_html( $m['buyer_name'] ) . '! Am primit comanda ta pentru un card cadou:</p>' . self::summary( $id );
 		$body .= self::payment_block();
 		$body .= '<p>Scrie la plată codul <strong>' . esc_html( self::code( $id ) ) . '</strong>. Imediat ce confirmăm plata, primești cardul pe email (JPG și PDF, gata de trimis sau de printat)'
 			. ( $m['recipient_email'] ? ', iar ' . esc_html( $m['to'] ) . ' îl primește ' . ( $m['send_at'] ? 'pe ' . esc_html( preg_replace( '/^[^,]+,\s*/', '', STM_Helpers::date_label( $m['send_at'] ) ) ) : 'în același timp' ) : '' ) . '.</p>';
-		if ( $phone ) {
-			$body .= '<p>Întrebări? <a href="tel:' . esc_attr( preg_replace( '/\s+/', '', $phone ) ) . '">' . esc_html( $phone ) . '</a></p>';
-		}
+		$body .= self::details_block( $m );
 		self::send( $m['buyer_email'], 'Card cadou ' . self::code( $id ) . ': cum plătești', self::wrap( 'Comanda ta de card cadou', $body ), array(), $admins ? $admins[0] : '' );
 
 		$admin  = '<p>Comandă nouă de card cadou (în așteptarea plății):</p>' . self::summary( $id );
@@ -680,27 +685,38 @@ class STM_Giftcards {
 			self::build_files( $id );
 		}
 		$pdf  = self::file( $id, 'pdf' );
+		$file = self::file( $id, 'jpg' );
 		$jpg  = self::download_url( $id, 'jpg' );
 		$code = self::code( $id );
+		// Imaginea cardului vine în email (cid), nu de pe site: se vede și fără conexiune la site.
+		$cid    = 'stm-card-' . strtolower( preg_replace( '/[^A-Za-z0-9]+/', '', $code ) ) . '@' . wp_parse_url( home_url(), PHP_URL_HOST );
+		$embeds = $file ? array(
+			array(
+				'path' => $file,
+				'cid'  => $cid,
+				'name' => 'card-cadou-' . strtolower( $code ) . '.jpg',
+			),
+		) : array();
 		$book = trim( (string) STM_Helpers::get( 'gift_book_url' ) );
 		$book = $book ? $book : home_url( '/' );
-		$img  = '<p><a href="' . esc_url( self::download_url( $id, 'pdf' ) ) . '"><img src="' . esc_url( $jpg ) . '" alt="Card cadou ' . esc_attr( $code ) . '" style="width:100%;max-width:600px;height:auto;border-radius:6px"></a></p>';
+		$img  = '<p><a href="' . esc_url( self::download_url( $id, 'pdf' ) ) . '"><img src="' . ( $embeds ? 'cid:' . esc_attr( $cid ) : esc_url( $jpg ) ) . '" alt="Card cadou ' . esc_attr( $code ) . '" width="600" style="display:block;width:100%;max-width:600px;height:auto;border-radius:6px"></a></p>';
 		$how  = '<p><strong>Cum se folosește:</strong> pe <a href="' . esc_url( $book ) . '">' . esc_html( wp_parse_url( $book, PHP_URL_HOST ) ) . '</a> se alege ședința, ziua și ora, iar la pasul „Confirmare” se scrie codul <strong>' . esc_html( $code ) . '</strong>. Valoarea cardului se scade automat.'
 			. ( $m['expires'] ? ' Cardul este valabil până la ' . esc_html( preg_replace( '/^[^,]+,\s*/', '', STM_Helpers::date_label( $m['expires'] ) ) ) . '.' : '' ) . '</p>';
-		$links = '<p><a href="' . esc_url( self::download_url( $id, 'pdf' ) ) . '" style="display:inline-block;background:#1f2328;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">Descarcă PDF pentru print</a> &nbsp; <a href="' . esc_url( $jpg ) . '">Descarcă imaginea</a></p>';
+		$links = '<p>PDF-ul pentru print e atașat la acest email. Îl poți descărca și de aici:</p>'
+			. '<p><a href="' . esc_url( self::download_url( $id, 'pdf' ) ) . '" style="display:inline-block;background:#1f2328;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">Descarcă PDF pentru print</a> &nbsp; <a href="' . esc_url( $jpg ) . '">Descarcă imaginea</a></p>';
 
 		if ( 'recipient' === $who ) {
 			$body = '<p>Bună, ' . esc_html( $m['to'] ) . '! Ai primit un card cadou din partea ' . esc_html( $m['from'] ) . ': o ședință foto cu Marian Sterea.</p>'
-				. ( $m['message'] ? '<p style="font-style:italic">„' . esc_html( $m['message'] ) . '”</p>' : '' ) . $img . $how . $links;
+				. ( $m['message'] ? '<p style="font-style:italic">„' . esc_html( $m['message'] ) . '”</p>' : '' ) . $img . $how . $links . self::details_block( $m );
 			$subject = 'Un cadou pentru tine din partea ' . $m['from'] . ': ședință foto';
 		} else {
 			$auto = ! empty( $m['auto'] ) && empty( $m['paid_at'] );
 			$body = '<p>Bună, ' . esc_html( $m['buyer_name'] ) . '! ' . ( $auto ? 'Mulțumim pentru comandă, cardul cadou este gata.' : 'Plata a fost confirmată, cardul cadou este gata.' ) . ' Îl poți trimite mai departe (imaginea sau PDF-ul) sau îl poți printa.</p>'
-				. $img . self::summary( $id ) . ( $auto ? self::payment_block() : '' ) . $how . $links;
+				. $img . self::summary( $id ) . ( $auto ? self::payment_block() : '' ) . $how . $links . self::details_block( $m );
 			$subject = 'Cardul tău cadou ' . $code . ' este gata';
 		}
 		$admins = self::admin_emails();
-		$ok     = self::send( $to, $subject, self::wrap( 'recipient' === $who ? 'Un cadou pentru tine' : 'Cardul cadou este gata', $body ), $pdf ? array( $pdf ) : array(), $admins ? $admins[0] : '' );
+		$ok     = self::send( $to, $subject, self::wrap( 'recipient' === $who ? 'Un cadou pentru tine' : 'Cardul cadou este gata', $body ), $pdf ? array( $pdf ) : array(), $admins ? $admins[0] : '', $embeds );
 		if ( $ok ) {
 			$m = self::meta( $id );
 			$m[ 'recipient' === $who ? 'sent_recipient' : 'sent_buyer' ] = STM_Helpers::now()->format( 'Y-m-d H:i' );

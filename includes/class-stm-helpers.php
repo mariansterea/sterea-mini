@@ -74,6 +74,7 @@ class STM_Helpers {
 			'location'  => 'Curtea Lipovenesc',
 			'address'   => '',
 			'map_url'   => '',
+			'client_info' => '',
 			'duration'  => 30,
 			'buffer'    => 10,
 			'deadline'  => 24,
@@ -381,7 +382,7 @@ class STM_Helpers {
 	 * pune utilizatorul de sistem (ex. user@server-0387.whmpanels.com), iar releul SMTP al
 	 * hostingului respinge emailul cu „550 Invalid sender”.
 	 */
-	public static function mail( $to, $subject, $html, $reply_to = '', $attachments = array() ) {
+	public static function mail( $to, $subject, $html, $reply_to = '', $attachments = array(), $embeds = array() ) {
 		if ( ! is_email( $to ) ) {
 			return false;
 		}
@@ -400,6 +401,21 @@ class STM_Helpers {
 		$sender = function ( $phpmailer ) use ( $from ) {
 			$phpmailer->Sender = $from; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		};
+		// Imagini în corpul emailului (cid:...), ca să se vadă fără să fie încărcate de pe site.
+		$embed = function ( $phpmailer ) use ( $embeds ) {
+			if ( ! is_object( $phpmailer ) || ! method_exists( $phpmailer, 'addEmbeddedImage' ) ) {
+				return;
+			}
+			foreach ( (array) $embeds as $e ) {
+				if ( ! empty( $e['path'] ) && ! empty( $e['cid'] ) && is_readable( $e['path'] ) ) {
+					try {
+						$phpmailer->addEmbeddedImage( $e['path'], $e['cid'], isset( $e['name'] ) ? $e['name'] : basename( $e['path'] ), 'base64', isset( $e['type'] ) ? $e['type'] : 'image/jpeg' );
+					} catch ( Exception $ex ) {
+						unset( $ex );
+					}
+				}
+			}
+		};
 		$fail = function ( $error ) {
 			self::$mail_error = is_wp_error( $error ) ? $error->get_error_message() : 'eroare necunoscută';
 		};
@@ -410,9 +426,13 @@ class STM_Helpers {
 		if ( $from ) {
 			add_action( 'phpmailer_init', $sender, 1000 );
 		}
+		if ( $embeds ) {
+			add_action( 'phpmailer_init', $embed, 1001 );
+		}
 		add_action( 'wp_mail_failed', $fail );
 		$ok = wp_mail( $to, $subject, $html, $headers, $attachments );
 		remove_action( 'wp_mail_failed', $fail );
+		remove_action( 'phpmailer_init', $embed, 1001 );
 		remove_action( 'phpmailer_init', $sender, 1000 );
 		remove_filter( 'wp_mail_from_name', $name_filter, 99 );
 		self::log_mail( $to, $subject, $ok, self::$mail_error );
@@ -443,6 +463,49 @@ class STM_Helpers {
 			}
 		}
 		// phpcs:enable
+	}
+
+	/**
+	 * Blocul „Unde și cum” pentru emailuri: locația evenimentului, butonul Google Maps și
+	 * informațiile pentru client (ale evenimentului sau, dacă lipsesc, textul general din Setări).
+	 *
+	 * @param int  $theme_id   Evenimentul (0 = doar textul general).
+	 * @param bool $with_place Afișează și rândul „Unde:” (nu e nevoie când locația e deja în rezumat).
+	 */
+	public static function event_block( $theme_id, $with_place = true ) {
+		$html  = '';
+		$theme = $theme_id ? self::theme_meta( $theme_id ) : null;
+		if ( $theme ) {
+			$place = trim( $theme['location'] . ( $theme['address'] ? ', ' . $theme['address'] : '' ), ', ' );
+			if ( $with_place && $place ) {
+				$html .= '<p style="margin:18px 0 6px"><strong>Unde:</strong> ' . esc_html( $place ) . '</p>';
+			}
+			if ( $theme['map_url'] ) {
+				$html .= '<p style="margin:' . ( $with_place && $place ? '0' : '14px' ) . ' 0 14px"><a href="' . esc_url( $theme['map_url'] ) . '" style="display:inline-block;background:#f4f6f8;color:#1f2328;border:1px solid #d0d5dd;padding:8px 14px;border-radius:6px;text-decoration:none">Deschide în Google Maps</a></p>';
+			}
+		}
+		$info = $theme && '' !== trim( (string) $theme['client_info'] ) ? trim( (string) $theme['client_info'] ) : trim( (string) self::get( 'info_text' ) );
+		if ( $info ) {
+			$html .= '<div style="background:#f4f6f8;padding:12px 16px;border-radius:8px;margin:14px 0"><p style="margin:0 0 6px"><strong>Bine de știut</strong></p><p style="margin:0">' . nl2br( esc_html( $info ) ) . '</p></div>';
+		}
+		return $html;
+	}
+
+	/**
+	 * Contactul fotografului pentru emailuri: nume, telefon (apel și WhatsApp).
+	 */
+	public static function contact_block() {
+		$phone = trim( (string) self::get( 'contact_phone' ) );
+		if ( ! $phone ) {
+			return '';
+		}
+		$name   = self::mail_from_name();
+		$digits = preg_replace( '/\D+/', '', $phone );
+		$wa     = 0 === strpos( $digits, '0' ) ? '4' . $digits : $digits; // 07xx → 407xx (România).
+		$label  = preg_replace( '/^(\d{4})(\d{3})(\d{3})$/', '$1 $2 $3', $digits );
+		return '<p><strong>Contact:</strong> ' . ( $name ? esc_html( $name ) . ', ' : '' )
+			. '<a href="tel:' . esc_attr( $digits ) . '">' . esc_html( $label ? $label : $phone ) . '</a>'
+			. ' · <a href="https://wa.me/' . esc_attr( $wa ) . '">WhatsApp</a></p>';
 	}
 
 	private static function log_mail( $to, $subject, $ok, $error ) {

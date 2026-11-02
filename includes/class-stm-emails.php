@@ -73,9 +73,6 @@ class STM_Emails {
 		foreach ( $rows as $label => $value ) {
 			$html .= '<tr><td style="color:#667085;padding-right:16px">' . esc_html( $label ) . '</td><td><strong>' . esc_html( $value ) . '</strong></td></tr>';
 		}
-		if ( $theme['map_url'] ) {
-			$html .= '<tr><td></td><td><a href="' . esc_url( $theme['map_url'] ) . '">Deschide în Google Maps</a></td></tr>';
-		}
 		return $html . '</table>';
 	}
 
@@ -94,17 +91,11 @@ class STM_Emails {
 		return array_filter( array_map( 'trim', explode( ',', (string) STM_Helpers::get( 'notify_email' ) ) ), 'is_email' );
 	}
 
-	private static function info_block() {
-		$info  = trim( (string) STM_Helpers::get( 'info_text' ) );
-		$phone = trim( (string) STM_Helpers::get( 'contact_phone' ) );
-		$html  = '';
-		if ( $info ) {
-			$html .= '<p style="background:#f4f6f8;padding:12px 14px;border-radius:8px">' . nl2br( esc_html( $info ) ) . '</p>';
-		}
-		if ( $phone ) {
-			$html .= '<p>Pentru orice întrebare: <a href="tel:' . esc_attr( preg_replace( '/\s+/', '', $phone ) ) . '">' . esc_html( $phone ) . '</a></p>';
-		}
-		return $html;
+	/**
+	 * Google Maps, cum să se pregătească (informațiile evenimentului) și contactul fotografului.
+	 */
+	private static function info_block( $b ) {
+		return STM_Helpers::event_block( (int) $b['theme'], false ) . STM_Helpers::contact_block();
 	}
 
 	/* ---------- Events ---------- */
@@ -126,7 +117,7 @@ class STM_Emails {
 		self::send(
 			$b['email'],
 			( $pending ? 'Cerere de rezervare: ' : 'Rezervare confirmată: ' ) . $theme_title,
-			self::wrap( $pending ? 'Am primit cererea ta' : 'Rezervare confirmată', $intro . self::summary( $b ) . self::info_block() . $actions ),
+			self::wrap( $pending ? 'Am primit cererea ta' : 'Rezervare confirmată', $intro . self::summary( $b ) . self::info_block( $b ) . $actions ),
 			self::admin_emails() ? self::admin_emails()[0] : ''
 		);
 
@@ -154,7 +145,7 @@ class STM_Emails {
 				'Rezervare confirmată: ' . get_the_title( $b['theme'] ),
 				self::wrap(
 					'Rezervare confirmată',
-					'<p>Bună, ' . esc_html( $b['name'] ) . '! Rezervarea ta este confirmată. Te așteptăm!</p>' . self::summary( $b ) . self::info_block()
+					'<p>Bună, ' . esc_html( $b['name'] ) . '! Rezervarea ta este confirmată. Te așteptăm!</p>' . self::summary( $b ) . self::info_block( $b )
 					. '<p><a href="' . esc_url( self::gcal_url( $b ) ) . '">Adaugă în calendar</a></p>'
 				)
 			);
@@ -200,10 +191,10 @@ class STM_Emails {
 			update_post_meta( $id, '_stm_reminded', 1 );
 			self::send(
 				$b['email'],
-				'Reamintire: mini-ședința ta foto, ' . STM_Helpers::date_label( substr( $b['start'], 0, 10 ) ) . ' la ' . substr( $b['start'], 11, 5 ),
+				'Reamintire: ședința ta foto, ' . STM_Helpers::date_label( substr( $b['start'], 0, 10 ) ) . ' la ' . substr( $b['start'], 11, 5 ),
 				self::wrap(
 					'Ne vedem curând!',
-					'<p>Bună, ' . esc_html( $b['name'] ) . '! Îți reamintim de mini-ședința foto:</p>' . self::summary( $b ) . self::info_block()
+					'<p>Bună, ' . esc_html( $b['name'] ) . '! Îți reamintim de ședința foto:</p>' . self::summary( $b ) . self::info_block( $b )
 					. '<p style="font-size:13px;color:#667085">Nu mai poți ajunge? <a href="' . esc_url( self::cancel_url( $b ) ) . '">Anulează rezervarea</a>.</p>'
 				)
 			);
