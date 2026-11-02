@@ -430,9 +430,10 @@
 			h('button', { type: 'button', role: 'radio', 'aria-checked': gift ? 'true' : 'false', class: 'stm-mode-opt' + (gift ? ' is-selected' : ''), onclick: function () { self.setMode('gift'); } }, [
 				h('span', { class: 'stm-mode-icon', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="9.5" width="17" height="11" rx="1.5"/><path d="M2.5 6.5h19v3h-19zM12 6.5v14M12 6.5C10.5 3 6.5 3 7 5.4c.3 1.4 3 1.1 5 1.1zm0 0c1.5-3.5 5.5-3.5 5-1.1-.3 1.4-3 1.1-5 1.1z"/></svg>' }),
 				h('span', { class: 'stm-mode-text' }, [h('strong', { text: this.giftTitle() }), h('span', { text: 'card personalizat, primit pe email' })])
-			]),
-			this.cfg.model ? h('figure', { class: 'stm-mode-model' }, [this.modelImg('', '150px'), h('figcaption', { text: 'Așa arată cardul cadou' })]) : null
+			])
 		]) : null;
+		// Miniatura cardului, discret, sub opțiunea „Oferă cadou” (în afara grupului de opțiuni).
+		var thumb = this.giftOn && this.cfg.model ? h('figure', { class: 'stm-mode-model' }, [this.modelImg('', '150px'), h('figcaption', { text: 'Așa arată cardul cadou' })]) : null;
 		var list = gift ? t.packages.filter(priced) : t.packages;
 		var packages = h('div', { class: 'stm-packages', role: 'radiogroup' }, list.map(function (p) {
 			return h('button', {
@@ -454,7 +455,7 @@
 			]),
 			h('p', { class: 'stm-hint', text: 'Maximum ' + t.max_people + ' persoane la o ședință.' })
 		]) : null;
-		return h('div', null, [intro, desc, choice,
+		return h('div', null, [intro, desc, choice, thumb,
 			h('label', { class: 'stm-label' }, [h('span', { class: 'req', text: '*' }), gift ? 'Alege pachetul pe care îl oferi:' : 'Alege pachetul:']), packages, people,
 			gift ? h('p', { class: 'stm-hint', text: 'Cel care primește cardul își alege singur ziua și ora, cu codul de pe card.' }) : null]);
 	};
