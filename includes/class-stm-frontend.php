@@ -1,6 +1,6 @@
 <?php
 /**
- * Shortcode [sterea_mini] that mounts the booking app.
+ * Shortcode [sterea_mini] care montează formularul de rezervare (și de card cadou).
  *
  * @package Sterea_Mini
  */
@@ -34,8 +34,8 @@ class STM_Frontend {
 	public static function shortcode( $atts ) {
 		$atts = shortcode_atts(
 			array(
-				'id'     => 0,
-				'cadou'  => 0,
+				'id'    => 0,
+				'cadou' => 0,
 			),
 			$atts,
 			'sterea_mini'
@@ -49,13 +49,29 @@ class STM_Frontend {
 		wp_enqueue_script( 'stm-front' );
 
 		$api    = add_query_arg( 'rest_route', '/' . STM_Rest::NS, home_url( '/' ) );
+		// Pe site-ul principal contează setarea locală; pe un site secundar decide site-ul principal.
+		// Formularul ia oricum valorile la zi din /themes (pagina poate fi în cache), acestea sunt doar rezerva.
 		$gift   = STM_Helpers::is_remote() || STM_Helpers::get( 'gift_enabled' );
+		$models = array();
+		foreach ( array( 'craciun', 'negru' ) as $style ) {
+			$model            = STM_Giftcards::model( $style );
+			$models[ $style ] = array(
+				'src'   => $model['src'],
+				'small' => $model['small'],
+				'alt'   => $model['alt'],
+			);
+		}
 		$config = array(
 			'phone'       => (string) STM_Helpers::get( 'contact_phone' ),
 			'gift'        => (bool) $gift,
-			'giftFirst'   => $gift && (bool) absint( $atts['cadou'] ),
+			'giftFirst'   => (bool) absint( $atts['cadou'] ),
 			'giftInstant' => 'instant' === STM_Helpers::get( 'gift_send' ),
 			'occasions'   => STM_Giftcards::occasions(),
+			'model'       => array(
+				'w'      => STM_Giftcards::MODEL_W,
+				'h'      => STM_Giftcards::MODEL_H,
+				'styles' => $models,
+			),
 		);
 
 		return sprintf(

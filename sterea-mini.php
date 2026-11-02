@@ -41,6 +41,7 @@ register_deactivation_hook( __FILE__, array( 'STM_Giftcards', 'unschedule' ) );
 add_action(
 	'plugins_loaded',
 	function () {
+		STM_Helpers::init();
 		STM_Themes::init();
 		STM_Bookings::init();
 		STM_Emails::init();

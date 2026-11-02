@@ -44,6 +44,7 @@ class STM_Helpers {
 			'gift_send'     => 'paid',
 			'mail_from_name' => 'Marian Sterea',
 			'mail_from'     => '',
+			'mail_sender_all' => 0,
 		);
 	}
 
@@ -169,7 +170,7 @@ class STM_Helpers {
 
 	public static function money( $n ) {
 		$n = (float) $n;
-		return ( floor( $n ) == $n ? number_format( $n, 0, ',', '.' ) : number_format( $n, 2, ',', '.' ) ) . ' lei';
+		return ( floor( $n ) === $n ? number_format( $n, 0, ',', '.' ) : number_format( $n, 2, ',', '.' ) ) . ' lei';
 	}
 
 	public static function now() {
@@ -358,16 +359,35 @@ class STM_Helpers {
 	/** @var string Ultima eroare raportată de wp_mail (acțiunea wp_mail_failed). */
 	private static $mail_error = '';
 
+	public static function init() {
+		add_action( 'phpmailer_init', array( __CLASS__, 'phpmailer_all' ), 999 );
+	}
+
+	/**
+	 * Adresa expeditorului din Setări (o căsuță reală de pe domeniu) sau ''.
+	 */
+	public static function mail_from() {
+		return (string) sanitize_email( (string) self::get( 'mail_from' ) );
+	}
+
+	public static function mail_from_name() {
+		return trim( str_replace( array( '"', "\r", "\n" ), '', (string) self::get( 'mail_from_name' ) ) );
+	}
+
 	/**
 	 * Trimite un email HTML cu expeditorul din Setări și îl trece în jurnal (ultimele 30).
+	 *
+	 * Expeditorul tehnic (envelope sender / Return-Path) devine aceeași adresă: altfel serverul
+	 * pune utilizatorul de sistem (ex. user@server-0387.whmpanels.com), iar releul SMTP al
+	 * hostingului respinge emailul cu „550 Invalid sender”.
 	 */
 	public static function mail( $to, $subject, $html, $reply_to = '', $attachments = array() ) {
 		if ( ! is_email( $to ) ) {
 			return false;
 		}
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
-		$name    = trim( str_replace( array( '"', "\r", "\n" ), '', (string) self::get( 'mail_from_name' ) ) );
-		$from    = sanitize_email( (string) self::get( 'mail_from' ) );
+		$name    = self::mail_from_name();
+		$from    = self::mail_from();
 		if ( $from ) {
 			$headers[] = 'From: ' . ( $name ? '"' . $name . '" ' : '' ) . '<' . $from . '>';
 		}
@@ -377,6 +397,9 @@ class STM_Helpers {
 		$name_filter = function () use ( $name ) {
 			return $name;
 		};
+		$sender = function ( $phpmailer ) use ( $from ) {
+			$phpmailer->Sender = $from; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+		};
 		$fail = function ( $error ) {
 			self::$mail_error = is_wp_error( $error ) ? $error->get_error_message() : 'eroare necunoscută';
 		};
@@ -384,12 +407,42 @@ class STM_Helpers {
 		if ( $name && ! $from ) {
 			add_filter( 'wp_mail_from_name', $name_filter, 99 );
 		}
+		if ( $from ) {
+			add_action( 'phpmailer_init', $sender, 1000 );
+		}
 		add_action( 'wp_mail_failed', $fail );
 		$ok = wp_mail( $to, $subject, $html, $headers, $attachments );
 		remove_action( 'wp_mail_failed', $fail );
+		remove_action( 'phpmailer_init', $sender, 1000 );
 		remove_filter( 'wp_mail_from_name', $name_filter, 99 );
 		self::log_mail( $to, $subject, $ok, self::$mail_error );
 		return $ok;
+	}
+
+	/**
+	 * Opțiunea „Folosește această adresă pentru toate emailurile site-ului”: orice email trimis
+	 * prin wp_mail (formulare de contact, resetare parolă etc.) pleacă cu expeditorul tehnic din
+	 * Setări; dacă expeditorul vizibil este încă cel implicit (wordpress@…), îl înlocuiește și pe el.
+	 *
+	 * @param PHPMailer\PHPMailer\PHPMailer $phpmailer Obiectul folosit de wp_mail.
+	 */
+	public static function phpmailer_all( $phpmailer ) {
+		$from = self::mail_from();
+		if ( ! $from || ! self::get( 'mail_sender_all' ) ) {
+			return;
+		}
+		// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- proprietăți PHPMailer.
+		$phpmailer->Sender = $from;
+		if ( '' === (string) $phpmailer->From || 0 === stripos( (string) $phpmailer->From, 'wordpress@' ) ) {
+			$name = self::mail_from_name();
+			try {
+				$phpmailer->setFrom( $from, $name ? $name : (string) $phpmailer->FromName, false );
+			} catch ( Exception $e ) {
+				// Adresa e deja validată cu sanitize_email; dacă PHPMailer tot o refuză, rămâne expeditorul vechi.
+				unset( $e );
+			}
+		}
+		// phpcs:enable
 	}
 
 	private static function log_mail( $to, $subject, $ok, $error ) {

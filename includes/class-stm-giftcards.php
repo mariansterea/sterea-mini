@@ -30,6 +30,7 @@ class STM_Giftcards {
 		add_action( 'init', array( __CLASS__, 'register' ) );
 		add_action( 'init', array( __CLASS__, 'schedule' ) );
 		add_shortcode( 'sterea_mini_card_cadou', array( __CLASS__, 'shortcode' ) );
+		add_shortcode( 'sterea_mini_card_model', array( __CLASS__, 'model_shortcode' ) );
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'download' ) );
 		add_action( self::CRON, array( __CLASS__, 'deliver_scheduled' ) );
@@ -209,6 +210,13 @@ class STM_Giftcards {
 			if ( ! $package || STM_Helpers::to_number( $package['price'] ) <= 0 ) {
 				return new WP_Error( 'stm_gift_package', 'Alege pachetul.', array( 'status' => 400 ) );
 			}
+			// Un eveniment fără zile viitoare: cardul ar expira înainte să poată fi folosit.
+			if ( empty( $theme['days'] ) ) {
+				return new WP_Error( 'stm_gift_theme', 'Ședințele acestui eveniment s-au încheiat, nu mai poate fi oferit cadou.', array( 'status' => 400 ) );
+			}
+			if ( empty( $theme['open'] ) && ! $from_admin ) {
+				return new WP_Error( 'stm_gift_theme', 'Comenzile pentru acest eveniment sunt închise momentan.', array( 'status' => 400 ) );
+			}
 			$m['theme']   = (int) $theme['id'];
 			$m['package'] = $package['name'];
 			$m['value']   = STM_Helpers::to_number( $package['price'] );
@@ -262,6 +270,14 @@ class STM_Giftcards {
 		}
 		if ( $m['recipient_email'] && ! is_email( $m['recipient_email'] ) ) {
 			return new WP_Error( 'stm_gift_remail', 'Adresa de email a destinatarului nu pare corectă.', array( 'status' => 400 ) );
+		}
+		if ( ! $m['recipient_email'] ) {
+			$m['send_at'] = '';
+		}
+		// Cardul trebuie să ajungă la destinatar cât încă se poate folosi.
+		$expires = self::expiry_for( $m );
+		if ( $m['send_at'] && $m['send_at'] > $expires ) {
+			return new WP_Error( 'stm_gift_sendat', 'Alege o dată până la ' . preg_replace( '/^[^,]+,\s*/', '', STM_Helpers::date_label( $expires ) ) . ': după această zi cardul nu se mai poate folosi.', array( 'status' => 400 ) );
 		}
 
 		$id = wp_insert_post(
@@ -350,7 +366,7 @@ class STM_Giftcards {
 		$m   = self::meta( $id );
 		$now = STM_Helpers::now();
 		$ro  = array( '', 'ian', 'feb', 'mar', 'apr', 'mai', 'iun', 'iul', 'aug', 'sep', 'oct', 'nov', 'dec' );
-		$is_xmas = 'Crăciun' === $m['occasion'] || ( $m['theme'] && false !== mb_stripos( get_the_title( $m['theme'] ), 'crăciun' ) );
+		$is_xmas = 'Crăciun' === $m['occasion'] || ( $m['theme'] && preg_match( '/cr(ă|a)ciun/iu', get_the_title( $m['theme'] ) ) );
 
 		if ( 'package' === $m['kind'] ) {
 			$kicker = 'Primești o ședință foto' . ( $is_xmas ? ' de Crăciun' : '' );
@@ -465,6 +481,11 @@ class STM_Giftcards {
 		if ( ! $path ) {
 			wp_die( 'Cardul nu a putut fi generat.', 'Card cadou', array( 'response' => 500 ) );
 		}
+		// Fără cache de pagină (LiteSpeed etc.): după „Regenerează fișierele” trebuie să vină cardul nou.
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+			define( 'DONOTCACHEPAGE', true );
+		}
+		do_action( 'litespeed_control_set_nocache', 'stm: card cadou' ); // phpcs:ignore WordPress.NamingConventions.ValidHookName -- hook LiteSpeed Cache.
 		nocache_headers();
 		header( 'Content-Type: ' . ( 'jpg' === $ext ? 'image/jpeg' : 'application/pdf' ) );
 		header( 'Content-Length: ' . filesize( $path ) );
@@ -734,17 +755,21 @@ class STM_Giftcards {
 		if ( ! empty( $in['website'] ) ) {
 			return new WP_Error( 'stm_spam', 'Cererea nu a putut fi trimisă.', array( 'status' => 400 ) );
 		}
+		// Pe site-ul secundar limita e pe IP-ul vizitatorului; pe cel principal, pe IP + X-STM-Client-IP.
+		if ( STM_Rest::rate_limited( 'gift', 5 ) ) {
+			return new WP_Error( 'stm_limit', 'Prea multe încercări. Încearcă din nou mai târziu sau sună-ne.', array( 'status' => 429 ) );
+		}
 		$fields = array( 'kind', 'theme', 'package', 'amount', 'occasion', 'to', 'from', 'message', 'buyer_name', 'buyer_email', 'buyer_phone', 'recipient_email', 'send_at', 'consent' );
 		$clean  = array();
 		foreach ( $fields as $f ) {
 			$clean[ $f ] = isset( $in[ $f ] ) && is_scalar( $in[ $f ] ) ? (string) $in[ $f ] : '';
 		}
 		if ( STM_Helpers::is_remote() ) {
-			$url = add_query_arg( 'rest_route', '/' . STM_Rest::NS . '/giftcard', STM_Helpers::remote_url() . '/' );
-			$res = wp_remote_post(
-				$url,
+			// Generarea cardului și emailurile pot dura pe site-ul principal: timeout mai mare decât la rezervare.
+			$data = STM_Rest::remote(
+				'/giftcard',
 				array(
-					'timeout' => 15,
+					'timeout' => 30,
 					'headers' => array(
 						'Content-Type'    => 'application/json',
 						'X-STM-Client-IP' => STM_Helpers::client_ip(),
@@ -752,25 +777,26 @@ class STM_Giftcards {
 					'body'    => wp_json_encode( $clean ),
 				)
 			);
-			if ( is_wp_error( $res ) ) {
-				return new WP_Error( 'stm_remote', 'Comanda nu a putut fi trimisă acum. Încearcă din nou peste câteva minute.', array( 'status' => 502 ) );
+			if ( is_wp_error( $data ) ) {
+				return $data;
 			}
-			$data = json_decode( wp_remote_retrieve_body( $res ), true );
-			$code = (int) wp_remote_retrieve_response_code( $res );
-			if ( $code >= 400 || ! is_array( $data ) ) {
-				return new WP_Error( 'stm_remote', is_array( $data ) && ! empty( $data['message'] ) ? $data['message'] : 'Eroare la server.', array( 'status' => max( 400, $code ) ) );
-			}
-			return rest_ensure_response( $data );
+			// Ce vine de pe celălalt site se afișează în pagină: se filtrează din nou.
+			return STM_Rest::no_cache(
+				array(
+					'ok'      => ! empty( $data['ok'] ),
+					'issued'  => ! empty( $data['issued'] ),
+					'code'    => sanitize_text_field( isset( $data['code'] ) ? (string) $data['code'] : '' ),
+					'value'   => sanitize_text_field( isset( $data['value'] ) ? (string) $data['value'] : '' ),
+					'message' => sanitize_text_field( isset( $data['message'] ) ? (string) $data['message'] : '' ),
+					'payment' => wp_kses_post( isset( $data['payment'] ) ? (string) $data['payment'] : '' ),
+					'preview' => esc_url_raw( isset( $data['preview'] ) ? (string) $data['preview'] : '' ),
+					'image'   => esc_url_raw( isset( $data['image'] ) ? (string) $data['image'] : '' ),
+				)
+			);
 		}
-		if ( ! STM_Helpers::get( 'gift_enabled' ) ) {
+		if ( ! STM_Rest::gift_config()['on'] ) {
 			return new WP_Error( 'stm_gift_off', 'Cardurile cadou nu sunt disponibile momentan.', array( 'status' => 403 ) );
 		}
-		$key = 'stm_rl_gift_' . md5( STM_Helpers::client_ip() );
-		$n   = (int) get_transient( $key );
-		if ( $n >= 5 ) {
-			return new WP_Error( 'stm_limit', 'Prea multe încercări. Încearcă din nou mai târziu.', array( 'status' => 429 ) );
-		}
-		set_transient( $key, $n + 1, HOUR_IN_SECONDS );
 
 		$id = self::create( $clean );
 		if ( is_wp_error( $id ) ) {
@@ -779,7 +805,8 @@ class STM_Giftcards {
 		self::on_created_emails( $id );
 		$m      = self::meta( $id );
 		$issued = 'pending' !== $m['status'];
-		return rest_ensure_response(
+		// Linkurile sunt absolute (home_url al acestui site), deci merg și când comanda vine de pe un site secundar.
+		return STM_Rest::no_cache(
 			array(
 				'ok'      => true,
 				'issued'  => $issued,
@@ -790,6 +817,7 @@ class STM_Giftcards {
 					: (string) STM_Helpers::get( 'gift_success_text' ),
 				'payment' => wp_kses_post( nl2br( esc_html( (string) STM_Helpers::get( 'gift_payment_text' ) ) ) ),
 				'preview' => $issued ? self::download_url( $id, 'pdf' ) : '',
+				'image'   => $issued && self::file( $id, 'jpg' ) ? self::download_url( $id, 'jpg' ) : '',
 			)
 		);
 	}
@@ -812,6 +840,63 @@ class STM_Giftcards {
 		);
 	}
 
+	/* ---------- Modelul cardului (imagine cu date de exemplu) ---------- */
+
+	const MODEL_W = 1400;
+	const MODEL_H = 540;
+
+	/**
+	 * Imaginile-model din assets/img (generate o dată cu STM_Giftcard_Image::render, cu date de
+	 * exemplu): giftcard-model-{stil}.webp (1400 × 540) și giftcard-model-{stil}-700.webp (700 × 270).
+	 * Doar biletul, cu colțuri rotunjite transparente, fără ramă și fără umbră (umbra vine din CSS).
+	 */
+	public static function model( $style ) {
+		$style = 'negru' === $style ? 'negru' : 'craciun';
+		$base  = STM_URL . 'assets/img/giftcard-model-' . $style;
+		return array(
+			'src'    => $base . '.webp?ver=' . STM_VERSION,
+			'small'  => $base . '-700.webp?ver=' . STM_VERSION,
+			'width'  => self::MODEL_W,
+			'height' => self::MODEL_H,
+			'alt'    => 'craciun' === $style
+				? 'Model de card cadou pentru o ședință foto de Crăciun cu Marian Sterea: numele celui care îl primește, din partea cui, mesajul și codul de rezervare'
+				: 'Model de card cadou pentru o ședință foto cu Marian Sterea: numele celui care îl primește, din partea cui, mesajul și codul de rezervare',
+		);
+	}
+
+	/**
+	 * [sterea_mini_card_model stil="craciun|negru" link="" alt="" latime=""] = imaginea-model a
+	 * cardului, opțional ca link (ex. spre pagina de comandă). Merge și pe un site secundar:
+	 * imaginile sunt în pluginul local.
+	 */
+	public static function model_shortcode( $atts ) {
+		$atts  = shortcode_atts(
+			array(
+				'stil'   => 'craciun',
+				'link'   => '',
+				'alt'    => '',
+				'latime' => '',
+			),
+			$atts,
+			'sterea_mini_card_model'
+		);
+		$model = self::model( sanitize_key( $atts['stil'] ) );
+		$alt   = '' !== trim( $atts['alt'] ) ? sanitize_text_field( $atts['alt'] ) : $model['alt'];
+		$max   = absint( $atts['latime'] );
+		$img   = sprintf(
+			'<img class="stm-card-model" src="%1$s" srcset="%2$s 700w, %1$s 1400w" sizes="(max-width: 760px) 100vw, %3$s" width="%4$d" height="%5$d" alt="%6$s" loading="lazy" decoding="async" style="display:block;width:100%%;max-width:%7$s;height:auto">',
+			esc_url( $model['src'] ),
+			esc_url( $model['small'] ),
+			esc_attr( $max ? $max . 'px' : '900px' ),
+			$model['width'],
+			$model['height'],
+			esc_attr( $alt ),
+			esc_attr( $max ? $max . 'px' : '100%' )
+		);
+		$link = esc_url( trim( $atts['link'] ) );
+		return $link ? '<a class="stm-card-model-link" href="' . $link . '" style="display:inline-block;max-width:100%">' . $img . '</a>' : $img;
+	}
+
 	/* ---------- Admin ---------- */
 
 	public static function action_url( $do, $id ) {
@@ -828,7 +913,13 @@ class STM_Giftcards {
 		$msg = '';
 		switch ( $do ) {
 			case 'paid':
-				$msg = self::mark_paid( $id ) ? 'Cardul ' . self::code( $id ) . ' este plătit; a fost generat și trimis pe email.' : 'Cardul nu era în așteptarea plății.';
+				$before = self::meta( $id );
+				$auto   = 'paid' === $before['status'] && ! empty( $before['auto'] ) && empty( $before['paid_at'] );
+				if ( ! self::mark_paid( $id ) ) {
+					$msg = 'Cardul nu era în așteptarea plății.';
+				} else {
+					$msg = $auto ? 'Plata pentru cardul ' . self::code( $id ) . ' a fost notată (cardul fusese deja trimis).' : 'Cardul ' . self::code( $id ) . ' este plătit; a fost generat și trimis pe email.';
+				}
 				break;
 			case 'resend':
 				$msg = self::send_card( $id, 'buyer' ) ? 'Cardul a fost retrimis cumpărătorului.' : 'Nu s-a putut trimite (cardul nu e plătit sau emailul lipsește).';
@@ -950,7 +1041,10 @@ class STM_Giftcards {
 			<?php endforeach; ?>
 		</select></p>
 		<?php if ( $m['issued'] ) : ?>
-			<p class="description">Emis: <?php echo esc_html( $m['issued'] ); ?>. Trimis cumpărătorului: <?php echo esc_html( $m['sent_buyer'] ? $m['sent_buyer'] : 'nu încă' ); ?>.</p>
+			<p class="description">Emis: <?php echo esc_html( $m['issued'] ); ?>. Trimis cumpărătorului: <?php echo esc_html( $m['sent_buyer'] ? $m['sent_buyer'] : 'nu încă' ); ?>.
+			<?php if ( ! empty( $m['auto'] ) ) : ?>
+				Plata: <?php echo esc_html( $m['paid_at'] ? 'confirmată pe ' . $m['paid_at'] : 'neconfirmată încă (card trimis automat la comandă)' ); ?>.
+			<?php endif; ?></p>
 		<?php endif; ?>
 		<?php if ( $m['booking'] ) : ?>
 			<p>Folosit la <a href="<?php echo esc_url( admin_url( 'post.php?post=' . (int) $m['booking'] . '&action=edit' ) ); ?>">rezervarea #<?php echo (int) $m['booking']; ?></a>.</p>
@@ -960,6 +1054,9 @@ class STM_Giftcards {
 				<?php if ( in_array( $m['status'], array( 'pending', 'cancelled' ), true ) ) : ?>
 					<a class="button button-primary" href="<?php echo esc_url( self::action_url( 'paid', $post->ID ) ); ?>">Marchează plătit și trimite</a>
 				<?php else : ?>
+					<?php if ( 'paid' === $m['status'] && ! empty( $m['auto'] ) && empty( $m['paid_at'] ) ) : ?>
+						<a class="button button-primary" href="<?php echo esc_url( self::action_url( 'paid', $post->ID ) ); ?>">Am primit plata</a>
+					<?php endif; ?>
 					<a class="button" href="<?php echo esc_url( self::action_url( 'resend', $post->ID ) ); ?>">Retrimite cumpărătorului</a>
 					<?php if ( $m['recipient_email'] ) : ?>
 						<a class="button" href="<?php echo esc_url( self::action_url( 'resend_recipient', $post->ID ) ); ?>">Trimite destinatarului</a>

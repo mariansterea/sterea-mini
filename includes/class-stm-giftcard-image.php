@@ -62,16 +62,24 @@ class STM_Giftcard_Image {
 		self::text( $im, 'serif', 112, $ink, 394, 648, $d['date_day'], 'center' );
 		self::spaced( $im, 'sans', 22, 2, $ink, 394, 688, mb_strtoupper( $d['date_year'] ), 'center' );
 
-		// Pentru / Din partea (etichetele sunt în șablon).
-		self::text( $im, 'serif', 46, $ink, 684, 578, self::fit( 'serif', 46, $d['to'], 375 ), 'left' );
-		self::text( $im, 'serif', 46, $ink, 748, 647, self::fit( 'serif', 46, $d['from'], 310 ), 'left' );
+		// Pentru / Din partea (etichetele sunt în șablon). Numele lungi se scriu mai mic, apoi se taie.
+		list( $size, $to ) = self::fit_size( 'serif', array( 46, 42, 38, 35, 32, 30 ), $d['to'], 375 );
+		self::text( $im, 'serif', $size, $ink, 684, 578, $to, 'left' );
+		list( $size, $from ) = self::fit_size( 'serif', array( 46, 42, 38, 35, 32, 30 ), $d['from'], 310 );
+		self::text( $im, 'serif', $size, $ink, 748, 647, $from, 'left' );
 
-		// Mesajul, pe maximum 3 rânduri.
-		$lines = self::wrap( 'serif-i', 40, $d['message'], 620, 3 );
-		$y     = 586;
-		foreach ( $lines as $line ) {
-			self::text( $im, 'serif-i', 40, $soft, 1111, $y, $line, 'left' );
-			$y += 52;
+		// Mesajul: 3 rânduri la mărimea normală; un mesaj lung se scrie mai mic, pe cel mult 4 rânduri.
+		$layouts = array( array( 40, 52, 3 ), array( 36, 47, 3 ), array( 33, 43, 4 ), array( 30, 40, 4 ) );
+		foreach ( $layouts as $layout ) {
+			if ( count( self::split( 'serif-i', $layout[0], $d['message'], 620 ) ) <= $layout[2] ) {
+				break;
+			}
+		}
+		list( $size, $line_h, $max_lines ) = $layout;
+		$y = 546 + $size;
+		foreach ( self::wrap( 'serif-i', $size, $d['message'], 620, $max_lines ) as $line ) {
+			self::text( $im, 'serif-i', $size, $soft, 1111, $y, $line, 'left' );
+			$y += $line_h;
 		}
 
 		// Linia de termeni (pachet, valabilitate, unde se rezervă), 1–2 rânduri centrate.
@@ -146,47 +154,72 @@ class STM_Giftcard_Image {
 	}
 
 	/**
+	 * Lățimea unui text cu litere rărite.
+	 */
+	private static function spaced_width( $font, $size, $text, $spacing ) {
+		return self::width( $font, $size, $text ) + $spacing * max( 0, mb_strlen( $text ) - 1 );
+	}
+
+	/**
 	 * Taie textul cu „…” dacă depășește lățimea.
 	 */
-	private static function fit( $font, $size, $text, $max ) {
+	private static function fit( $font, $size, $text, $max, $spacing = 0 ) {
 		$text = trim( (string) $text );
-		while ( '' !== $text && self::width( $font, $size, $text ) > $max ) {
+		while ( mb_strlen( $text ) > 1 && self::spaced_width( $font, $size, $text, $spacing ) > $max ) {
 			$text = rtrim( mb_substr( $text, 0, -2 ) ) . '…';
 		}
 		return $text;
 	}
 
 	/**
-	 * Împarte textul pe rânduri de cel mult $max px; ultimul rând primește „…” dacă nu încape tot.
+	 * Prima mărime din listă la care textul încape; altfel cea mai mică, cu textul tăiat.
+	 *
+	 * @return array { mărime, text }
 	 */
-	private static function wrap( $font, $size, $text, $max, $max_lines, $spacing = 0 ) {
+	private static function fit_size( $font, $sizes, $text, $max ) {
+		$text = trim( (string) $text );
+		foreach ( $sizes as $size ) {
+			if ( self::width( $font, $size, $text ) <= $max ) {
+				return array( $size, $text );
+			}
+		}
+		$size = end( $sizes );
+		return array( $size, self::fit( $font, $size, $text, $max ) );
+	}
+
+	/**
+	 * Împarte textul pe rânduri de cel mult $max px (fără limită de rânduri).
+	 */
+	private static function split( $font, $size, $text, $max, $spacing = 0 ) {
 		$words = preg_split( '/\s+/u', trim( (string) $text ), -1, PREG_SPLIT_NO_EMPTY );
 		$lines = array();
 		$cur   = '';
-		$w     = function ( $s ) use ( $font, $size, $spacing ) {
-			return self::width( $font, $size, $s ) + $spacing * max( 0, mb_strlen( $s ) - 1 );
-		};
 		foreach ( $words as $word ) {
 			$try = '' === $cur ? $word : $cur . ' ' . $word;
-			if ( $w( $try ) <= $max ) {
+			if ( '' === $cur || self::spaced_width( $font, $size, $try, $spacing ) <= $max ) {
 				$cur = $try;
 				continue;
 			}
-			if ( '' !== $cur ) {
-				$lines[] = $cur;
-			}
-			$cur = $word;
-			if ( count( $lines ) === $max_lines ) {
-				break;
-			}
+			$lines[] = $cur;
+			$cur     = $word;
 		}
-		if ( '' !== $cur && count( $lines ) < $max_lines ) {
+		if ( '' !== $cur ) {
 			$lines[] = $cur;
 		}
-		if ( count( $lines ) > $max_lines || ( count( $lines ) === $max_lines && $w( implode( ' ', $words ) ) > $max * $max_lines ) ) {
-			$lines       = array_slice( $lines, 0, $max_lines );
-			$last        = $lines[ $max_lines - 1 ];
-			$lines[ $max_lines - 1 ] = self::fit( $font, $size, $last . '…', $max );
+		return $lines;
+	}
+
+	/**
+	 * Ca split(), dar pe cel mult $max_lines rânduri; ultimul primește „…” dacă nu încape tot.
+	 * Un cuvânt mai lung decât rândul se taie și el cu „…”.
+	 */
+	private static function wrap( $font, $size, $text, $max, $max_lines, $spacing = 0 ) {
+		$lines = self::split( $font, $size, $text, $max, $spacing );
+		$cut   = count( $lines ) > $max_lines;
+		$lines = array_slice( $lines, 0, $max_lines );
+		foreach ( $lines as $i => $line ) {
+			$last        = $cut && $i === count( $lines ) - 1;
+			$lines[ $i ] = self::fit( $font, $size, $last ? $line . '…' : $line, $max, $spacing );
 		}
 		return $lines;
 	}

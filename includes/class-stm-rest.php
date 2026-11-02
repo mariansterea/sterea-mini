@@ -51,11 +51,16 @@ class STM_Rest {
 		);
 	}
 
-	private static function remote( $path, $args = array(), $query = array() ) {
+	/**
+	 * Cerere către site-ul principal (modul „afișare de pe alt site”). Erorile de acolo (cod +
+	 * mesaj) se întorc neschimbate, ca formularul să le poată arăta lângă câmpul potrivit.
+	 */
+	public static function remote( $path, $args = array(), $query = array() ) {
 		$url      = add_query_arg( array( 'rest_route' => '/' . self::NS . $path ) + $query, STM_Helpers::remote_url() . '/' );
 		$response = isset( $args['body'] ) ? wp_remote_post( $url, $args ) : wp_remote_get( $url, $args );
 		if ( is_wp_error( $response ) ) {
-			return new WP_Error( 'stm_remote', 'Programul nu poate fi încărcat acum. Încearcă din nou peste câteva minute.', array( 'status' => 502 ) );
+			$msg = isset( $args['body'] ) ? 'Cererea nu a putut fi trimisă acum. Încearcă din nou peste câteva minute.' : 'Programul nu poate fi încărcat acum. Încearcă din nou peste câteva minute.';
+			return new WP_Error( 'stm_remote', $msg, array( 'status' => 502 ) );
 		}
 		$code = (int) wp_remote_retrieve_response_code( $response );
 		$data = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -66,6 +71,27 @@ class STM_Rest {
 		return is_array( $data ) ? $data : new WP_Error( 'stm_remote', 'Răspuns invalid de la server.', array( 'status' => 502 ) );
 	}
 
+	/**
+	 * Răspuns care nu se păstrează în cache (LiteSpeed Cache, CDN, browser): programul și
+	 * setările se schimbă de la o rezervare la alta.
+	 */
+	public static function no_cache( $data ) {
+		$response = rest_ensure_response( $data );
+		$response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+		do_action( 'litespeed_control_set_nocache', 'stm: program live' ); // phpcs:ignore WordPress.NamingConventions.ValidHookName -- hook LiteSpeed Cache.
+		return $response;
+	}
+
+	/**
+	 * Setările de card cadou de care are nevoie formularul (de pe site-ul principal).
+	 */
+	public static function gift_config() {
+		return array(
+			'on'      => (bool) STM_Helpers::get( 'gift_enabled' ) && STM_Giftcard_Image::available(),
+			'instant' => 'instant' === STM_Helpers::get( 'gift_send' ),
+		);
+	}
+
 	public static function themes( WP_REST_Request $request ) {
 		$id = (int) $request->get_param( 'id' );
 
@@ -73,7 +99,7 @@ class STM_Rest {
 			$key    = 'stm_remote_' . $id;
 			$cached = get_transient( $key );
 			if ( false !== $cached ) {
-				return rest_ensure_response( $cached );
+				return self::no_cache( $cached );
 			}
 			$data = self::remote( '/themes', array( 'timeout' => 10 ), $id ? array( 'id' => $id ) : array() );
 			if ( is_wp_error( $data ) ) {
@@ -83,9 +109,16 @@ class STM_Rest {
 			foreach ( (array) ( isset( $data['themes'] ) ? $data['themes'] : array() ) as $i => $theme ) {
 				$data['themes'][ $i ]['content']   = wp_kses_post( isset( $theme['content'] ) ? (string) $theme['content'] : '' );
 				$data['themes'][ $i ]['gdpr_text'] = wp_kses_post( isset( $theme['gdpr_text'] ) ? (string) $theme['gdpr_text'] : '' );
+				$data['themes'][ $i ]['image']     = esc_url_raw( isset( $theme['image'] ) ? (string) $theme['image'] : '' );
+			}
+			if ( isset( $data['gift'] ) && is_array( $data['gift'] ) ) {
+				$data['gift'] = array(
+					'on'      => ! empty( $data['gift']['on'] ),
+					'instant' => ! empty( $data['gift']['instant'] ),
+				);
 			}
 			set_transient( $key, $data, 30 );
-			return rest_ensure_response( $data );
+			return self::no_cache( $data );
 		}
 
 		$ids    = $id ? array( $id ) : STM_Helpers::open_theme_ids();
@@ -96,21 +129,35 @@ class STM_Rest {
 				$themes[] = $theme;
 			}
 		}
-		$response = rest_ensure_response( array( 'themes' => $themes ) );
-		$response->header( 'Cache-Control', 'no-store' );
-		return $response;
+		return self::no_cache(
+			array(
+				'themes' => $themes,
+				'gift'   => self::gift_config(),
+			)
+		);
 	}
 
-	private static function rate_limited() {
-		$ip = STM_Helpers::client_ip();
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+	/**
+	 * Limită de cereri pe oră, pe vizitator. Pe site-ul principal, cererile venite de la un site
+	 * secundar au IP-ul vizitatorului în X-STM-Client-IP; antetul poate fi falsificat, așa că mai
+	 * există și o limită mare pe IP-ul care face cererea (serverul site-ului secundar).
+	 *
+	 * @param string $bucket Tipul cererii (book = rezervări și cupoane, gift = carduri cadou).
+	 * @param int    $max    Cereri pe oră pentru un vizitator.
+	 */
+	public static function rate_limited( $bucket = 'book', $max = 8 ) {
+		$ip  = STM_Helpers::client_ip();
 		$fwd = isset( $_SERVER['HTTP_X_STM_CLIENT_IP'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_STM_CLIENT_IP'] ) ) : '';
-		$key = 'stm_rl_' . md5( $ip . '|' . $fwd );
-		$n   = (int) get_transient( $key );
-		if ( $n >= 8 ) {
+		$fwd = filter_var( $fwd, FILTER_VALIDATE_IP ) ? $fwd : '';
+		$one = 'stm_rl_' . $bucket . '_' . md5( $ip . '|' . $fwd );
+		$all = 'stm_rl_' . $bucket . '_ip_' . md5( $ip );
+		$n   = (int) get_transient( $one );
+		$t   = (int) get_transient( $all );
+		if ( $n >= $max || $t >= $max * 25 ) {
 			return true;
 		}
-		set_transient( $key, $n + 1, HOUR_IN_SECONDS );
+		set_transient( $one, $n + 1, HOUR_IN_SECONDS );
+		set_transient( $all, $t + 1, HOUR_IN_SECONDS );
 		return false;
 	}
 
@@ -126,12 +173,22 @@ class STM_Rest {
 		foreach ( array( 'code', 'theme', 'package', 'email' ) as $f ) {
 			$clean[ $f ] = isset( $in[ $f ] ) && is_scalar( $in[ $f ] ) ? sanitize_text_field( (string) $in[ $f ] ) : '';
 		}
-		if ( STM_Helpers::is_remote() ) {
-			$result = self::remote( '/coupon', array( 'timeout' => 10, 'headers' => array( 'Content-Type' => 'application/json' ), 'body' => wp_json_encode( $clean ) ) );
-			return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
-		}
-		if ( self::rate_limited() ) {
+		if ( self::rate_limited( 'book', 8 ) ) {
 			return new WP_Error( 'stm_limit', 'Prea multe încercări. Încearcă din nou mai târziu.', array( 'status' => 429 ) );
+		}
+		if ( STM_Helpers::is_remote() ) {
+			$result = self::remote(
+				'/coupon',
+				array(
+					'timeout' => 10,
+					'headers' => array(
+						'Content-Type'    => 'application/json',
+						'X-STM-Client-IP' => STM_Helpers::client_ip(),
+					),
+					'body'    => wp_json_encode( $clean ),
+				)
+			);
+			return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
 		}
 		$theme = STM_Helpers::theme_public( absint( $clean['theme'] ) );
 		if ( ! $theme ) {
@@ -173,7 +230,7 @@ class STM_Rest {
 		if ( ! empty( $in['website'] ) ) {
 			return new WP_Error( 'stm_spam', 'Cererea nu a putut fi trimisă.', array( 'status' => 400 ) );
 		}
-		if ( self::rate_limited() ) {
+		if ( self::rate_limited( 'book', 8 ) ) {
 			return new WP_Error( 'stm_limit', 'Prea multe încercări. Încearcă din nou mai târziu sau sună-ne.', array( 'status' => 429 ) );
 		}
 
@@ -190,8 +247,8 @@ class STM_Rest {
 				array(
 					'timeout' => 15,
 					'headers' => array(
-						'Content-Type'      => 'application/json',
-						'X-STM-Client-IP'   => STM_Helpers::client_ip(),
+						'Content-Type'    => 'application/json',
+						'X-STM-Client-IP' => STM_Helpers::client_ip(),
 					),
 					'body'    => wp_json_encode( $clean ),
 				)

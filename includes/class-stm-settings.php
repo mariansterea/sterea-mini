@@ -31,9 +31,21 @@ class STM_Settings {
 		$to = array_filter( array_map( 'trim', explode( ',', (string) STM_Helpers::get( 'notify_email' ) ) ), 'is_email' );
 		$ok = 0;
 		foreach ( $to as $addr ) {
-			$ok += STM_Helpers::mail( $addr, 'Test email: Sterea Mini-Ședințe', '<p>Acesta este un email de test trimis din Mini-ședințe → Setări, ' . esc_html( STM_Helpers::now()->format( 'Y-m-d H:i' ) ) . '.</p><p>Dacă îl vezi în Inbox, emailurile către clienți ajung. Dacă l-ai găsit în Spam, marchează-l „Nu este spam” și activează DKIM pentru domeniu.</p>' ) ? 1 : 0;
+			$ok += STM_Helpers::mail( $addr, 'Test email: Sterea Mini-Ședințe', '<p>Acesta este un email de test trimis din Mini-ședințe → Setări, ' . esc_html( STM_Helpers::now()->format( 'Y-m-d H:i' ) ) . '.</p><p>Dacă îl vezi în Inbox, emailurile către clienți ajung. Dacă l-ai găsit în Spam, marchează-l „Nu este spam” și verifică DKIM/SPF pentru domeniu.</p>' ) ? 1 : 0;
 		}
-		set_transient( 'stm_notice_' . get_current_user_id(), $to ? sprintf( 'Email de test: %d din %d predate serverului (%s). Verifică Inbox și Spam.', $ok, count( $to ), implode( ', ', $to ) ) : 'Nu există nicio adresă la „Notificări rezervări noi”.', 60 );
+		if ( ! $to ) {
+			$msg = 'Nu există nicio adresă la „Notificări rezervări noi”.';
+		} else {
+			$msg = sprintf( 'Email de test: %d din %d predate serverului (%s). Verifică Inbox și Spam.', $ok, count( $to ), implode( ', ', $to ) );
+			$log = STM_Helpers::mail_log();
+			if ( $ok < count( $to ) && ! empty( $log[0]['error'] ) ) {
+				$msg .= ' Eroare: ' . $log[0]['error'];
+			}
+			if ( ! STM_Helpers::mail_from() ) {
+				$msg .= ' Atenție: „Adresa expeditorului” e goală; completeaz-o cu o căsuță reală de pe domeniu.';
+			}
+		}
+		set_transient( 'stm_notice_' . get_current_user_id(), $msg, 60 );
 		wp_safe_redirect( admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_THEME . '&page=stm-settings' ) );
 		exit;
 	}
@@ -80,6 +92,7 @@ class STM_Settings {
 			'gift_send'     => isset( $in['gift_send'] ) && 'instant' === $in['gift_send'] ? 'instant' : 'paid',
 			'mail_from_name' => sanitize_text_field( isset( $in['mail_from_name'] ) ? $in['mail_from_name'] : '' ),
 			'mail_from'     => sanitize_email( isset( $in['mail_from'] ) ? $in['mail_from'] : '' ),
+			'mail_sender_all' => empty( $in['mail_sender_all'] ) ? 0 : 1,
 		);
 		// Cheia JSON a contului de serviciu: se păstrează cea veche dacă nu s-a lipit alta.
 		$json_in = trim( (string) ( isset( $in['gcal_json'] ) ? $in['gcal_json'] : '' ) );
@@ -199,7 +212,7 @@ class STM_Settings {
 				</table>
 
 				<h2>Emailuri</h2>
-				<p class="description">Toate emailurile pluginului (rezervări, reamintiri, carduri cadou) pleacă de pe serverul site-ului. Ca să ajungă în Inbox, nu în Spam, domeniul trebuie să aibă DKIM activ (cPanel → Email Deliverability → Repair) sau trebuie folosit un modul SMTP.</p>
+				<p class="description" style="max-width:900px">Toate emailurile pluginului (rezervări, reamintiri, carduri cadou) pleacă de pe serverul site-ului. Adresa expeditorului trebuie să fie o căsuță de email care există pe domeniu (creată în cPanel → Email Accounts), de exemplu marianst@mariansterea.ro. Fără ea, serverul trimite în numele utilizatorului de sistem (ex. user@server-0387.whmpanels.com), iar releul de email al hostingului respinge mesajele cu „550 Invalid sender”. Pluginul folosește adresa de mai jos atât ca expeditor vizibil, cât și ca expeditor tehnic (Return-Path).</p>
 				<table class="form-table">
 					<tr>
 						<th><label for="stm-from-name">Numele expeditorului</label></th>
@@ -207,8 +220,10 @@ class STM_Settings {
 					</tr>
 					<tr>
 						<th><label for="stm-from">Adresa expeditorului</label></th>
-						<td><input type="email" id="stm-from" class="regular-text" name="<?php echo esc_attr( self::name( 'mail_from' ) ); ?>" value="<?php echo esc_attr( $s['mail_from'] ); ?>" placeholder="<?php echo esc_attr( 'wordpress@' . wp_parse_url( home_url(), PHP_URL_HOST ) ); ?>">
-						<p class="description">O adresă de pe domeniul site-ului, care există în cPanel (ex. rezervari@mariansterea.ro). Nu pune o adresă de Gmail: emailurile ar fi respinse. Gol = adresa implicită a WordPress.</p></td>
+						<td><input type="email" id="stm-from" class="regular-text" name="<?php echo esc_attr( self::name( 'mail_from' ) ); ?>" value="<?php echo esc_attr( $s['mail_from'] ); ?>" placeholder="marianst@mariansterea.ro">
+						<p class="description">O căsuță reală de pe domeniul site-ului (există în cPanel și poate primi emailuri). Nu pune o adresă de Gmail: emailurile ar fi respinse. Gol = adresa implicită a serverului, pe care releul hostingului o poate respinge.</p>
+						<p><label><input type="hidden" name="<?php echo esc_attr( self::name( 'mail_sender_all' ) ); ?>" value="0"><input type="checkbox" name="<?php echo esc_attr( self::name( 'mail_sender_all' ) ); ?>" value="1" <?php checked( $s['mail_sender_all'] ); ?>> Folosește această adresă ca expeditor pentru toate emailurile site-ului (formulare de contact, WordPress)</label></p>
+						<p class="description">Bifează dacă și formularele de contact sau emailurile WordPress (resetare parolă, comentarii) nu ajung. Expeditorul vizibil se schimbă doar unde era cel implicit (wordpress@…); un modul SMTP configurat separat rămâne cum e.</p></td>
 					</tr>
 					<tr>
 						<th>Test</th>
@@ -231,7 +246,7 @@ class STM_Settings {
 						<?php endforeach; ?>
 						</tbody>
 					</table>
-					<p class="description" style="max-width:900px">„Predat serverului” înseamnă că WordPress a trimis emailul; dacă tot nu ajunge, e oprit la livrare (Spam sau respins de Gmail), iar soluția e DKIM sau SMTP.</p>
+					<p class="description" style="max-width:900px">„Predat serverului” înseamnă că WordPress a trimis emailul mai departe. „Eșuat” cu „Invalid sender” înseamnă că adresa expeditorului lipsește sau nu e o căsuță existentă pe domeniu. Dacă emailul ajunge în Spam, ajută și DKIM/SPF active pentru domeniu (cPanel → Email Deliverability).</p>
 				<?php endif; ?>
 
 				<h2>Formularul de pe site</h2>
@@ -313,7 +328,10 @@ class STM_Settings {
 
 				<h2>Google Calendar</h2>
 				<p class="description">Fiecare rezervare apare automat într-un calendar Google (cu numele, telefonul, emailul și pachetul clientului), se actualizează la mutare sau confirmare și dispare la anulare. Are nevoie de un cont de serviciu Google; pașii de configurare sunt în readme.</p>
-				<?php $acc = STM_GCal::account(); $st = STM_GCal::status(); ?>
+				<?php
+				$acc = STM_GCal::account();
+				$st  = STM_GCal::status();
+				?>
 				<table class="form-table">
 					<tr>
 						<th>Sincronizare</th>

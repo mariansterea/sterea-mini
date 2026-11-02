@@ -156,6 +156,7 @@
 .stm-summary-row strong { font-weight: 700; }
 .stm-total { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--stm-soft); border-radius: 8px; font-weight: 700; }
 .stm-total em { font-style: normal; color: var(--stm-accent); font-size: 18px; }
+.stm-app .stm-total + .stm-hint { margin-top: 12px; }
 
 .stm-coupon { margin-bottom: 14px; }
 .stm-coupon-row { display: flex; gap: 8px; }
@@ -208,10 +209,26 @@
 .stm-mode-text { display: flex; flex-direction: column; min-width: 0; }
 .stm-mode-text strong { font-size: 15px; line-height: 1.3; }
 .stm-mode-text span { font-size: 13px; color: var(--stm-muted); margin-top: 2px; }
-.stm-wide-row { grid-column: 1 / -1; margin-top: -10px; }
+.stm-app .stm-wide-row { grid-column: 1 / -1; margin-top: -10px; }
 .stm-field[hidden] { display: none; }
 .stm-app select.stm-input { height: auto; }
-.stm-app textarea.stm-input { resize: vertical; }
+.stm-app textarea.stm-input { resize: vertical; display: block; }
 .stm-gift-pay { background: var(--stm-soft); border-radius: 8px; padding: 14px 16px; margin: 14px 0; text-align: left; }
 .stm-gift-pay p { margin: 6px 0 0; }
-@media (max-width: 640px) { .stm-mode { grid-template-columns: 1fr; } }
+.stm-mode-opt[disabled] { opacity: .55; cursor: not-allowed; }
+.stm-mode-opt[disabled]:hover { border-color: var(--stm-line); }
+.stm-app figure { margin: 0; padding: 0; }
+.stm-mode-model { grid-column: 2; display: flex; align-items: center; gap: 10px; }
+.stm-mode-model img { flex: none; display: block; width: 150px; max-width: 45%; height: auto; filter: drop-shadow(0 1px 3px rgba(0,0,0,.18)); }
+.stm-mode-model figcaption { font-size: 12px; color: var(--stm-muted); line-height: 1.35; }
+.stm-gift-model { grid-column: 1 / -1; margin: 0 0 4px; }
+.stm-gift-model img { display: block; width: 100%; max-width: 600px; height: auto; filter: drop-shadow(0 4px 12px rgba(0,0,0,.16)); }
+.stm-gift-model figcaption { font-size: 13px; color: var(--stm-muted); margin-top: 10px; max-width: 600px; }
+.stm-gift-card { display: block; max-width: 520px; margin: 0 auto 18px; }
+.stm-gift-card img { display: block; width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,.14); }
+.stm-closed-gift { margin-top: 14px !important; }
+.stm-closed-gift .stm-btn { display: block; margin: 12px auto 0; }
+@media (max-width: 640px) {
+	.stm-mode { grid-template-columns: 1fr; }
+	.stm-mode-model { grid-column: auto; margin-top: -2px; }
+}

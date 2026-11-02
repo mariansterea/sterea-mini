@@ -1,4 +1,4 @@
-/* Sterea Mini-Ședințe – formular de rezervare în 4 pași (fără dependențe). */
+/* Sterea Mini-Ședințe: formular de rezervare în 4 pași, cu varianta „card cadou” (fără dependențe). */
 (function () {
 	'use strict';
 
@@ -14,6 +14,8 @@
 		{ key: 'info', label: 'Datele tale' },
 		{ key: 'confirm', label: 'Confirmare' }
 	];
+	var XMAS = /cr[ăa]ciun/i;
+	var uid = 0;
 	var WEEKDAYS = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
 	var MONTHS = ['ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie', 'iulie', 'august', 'septembrie', 'octombrie', 'noiembrie', 'decembrie'];
 
@@ -44,8 +46,19 @@
 	function priceLabel(p) {
 		p = String(p || '').trim();
 		if (!p) return '';
-		return /^\d+([.,]\d+)?$/.test(p) ? p + ' lei' : p;
+		if (/^\d{4,}$/.test(p)) p = p.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+		return /^\d{1,3}(\.\d{3})*([.,]\d+)?$|^\d+([.,]\d+)?$/.test(p) ? p + ' lei' : p;
 	}
+	/** La fel ca STM_Helpers::to_number() din PHP: „1.200”, „800 lei”, „1.100,50”. */
+	function toNumber(price) {
+		var p = String(price || '').replace(/[\s\u00a0]/g, '');
+		if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(p)) p = p.replace(/\./g, '');
+		return parseFloat(p.replace(',', '.').replace(/[^0-9.]/g, '')) || 0;
+	}
+	/** Doar pachetele cu preț se pot oferi cadou (valoarea cardului = prețul). */
+	function priced(p) { return toNumber(p.price) > 0; }
+	function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+	function today(offset) { var d = new Date(); d.setDate(d.getDate() + (offset || 0)); return ymd(d); }
 
 	/**
 	 * API-ul pluginului: data-api este „…/?rest_route=/stm/v1”, deci parametrii se lipesc cu „&”.
@@ -88,12 +101,17 @@
 		this.cfg = cfg;
 		this.el = h('section', { class: 'stm-card' });
 		this.theme = theme;
+		this.uid = 'stm' + (++uid);
 		this.step = 0;
 		this.sel = { pkg: theme.packages.length === 1 ? theme.packages[0].id : null, people: Math.min(2, Math.max(1, theme.max_people || 1)), date: null, time: null, first: '', last: '', email: '', phone: '', notes: '', consent: false, coupon: '' };
 		// Mod „cadou”: aceeași ședință, dar se comandă un card cadou în loc de o oră (destinatarul alege ora).
-		this.giftOn = !!(cfg.gift && theme.packages.some(function (p) { return /^\d/.test(String(p.price || '').trim()); }));
-		this.mode = this.giftOn && cfg.giftFirst ? 'gift' : 'book';
-		this.gift = { occasion: (cfg.occasions || [])[0] || 'Cu drag', to: '', from: '', message: '', remail: '', sendAt: '' };
+		// Merge și când nu mai sunt ore libere, dar nu pentru un eveniment închis sau fără zile viitoare.
+		this.giftOn = !!(cfg.gift && theme.open && theme.days.length && theme.packages.some(priced));
+		this.mode = this.giftOn && (cfg.giftFirst || !this.bookable()) ? 'gift' : 'book';
+		var occ = cfg.occasions || ['Cu drag'];
+		var occDefault = XMAS.test(theme.title) && occ.indexOf('Crăciun') > -1 ? 'Crăciun' : (occ.indexOf('Cu drag') > -1 ? 'Cu drag' : occ[0]);
+		this.gift = { occasion: occDefault, to: '', from: '', message: '', remail: '', sendAt: '' };
+		this.fixPkg();
 		this.coupon = null; // { code, label, discount, total } după validare pe server
 		this.couponMsg = '';
 		this.errors = {};
@@ -119,19 +137,44 @@
 		}).catch(function () { /* păstrăm programul deja încărcat */ });
 	};
 
+	App.prototype.bookable = function () {
+		var t = this.theme;
+		return !!(t.open && t.days.some(function (d) { return d.slots.some(function (s) { return s.state === 'free'; }); }));
+	};
 	App.prototype.isGift = function () { return this.mode === 'gift'; };
 	App.prototype.steps = function () { return this.isGift() ? GIFT_STEPS : STEPS; };
 	App.prototype.giftTitle = function () {
-		return /cr[ăa]ciun/i.test(this.theme.title) ? 'Oferă cadou o ședință foto de Crăciun' : 'Oferă cadou această ședință foto';
+		return XMAS.test(this.theme.title) ? 'Oferă cadou o ședință foto de Crăciun' : 'Oferă cadou această ședință foto';
+	};
+	/** În modul cadou rămân doar pachetele cu preț; dacă e unul singur, e ales din oficiu. */
+	App.prototype.fixPkg = function () {
+		if (!this.isGift()) return;
+		var list = this.theme.packages.filter(priced), p = this.pkg();
+		if (p && !priced(p)) this.sel.pkg = null;
+		if (!this.sel.pkg && list.length === 1) this.sel.pkg = list[0].id;
 	};
 	App.prototype.setMode = function (mode) {
 		if (mode === this.mode) return;
+		if (mode === 'book' && !this.bookable()) return;
+		if (mode === 'gift' && !this.giftOn) return;
 		this.mode = mode;
 		this.coupon = null; this.couponMsg = '';
-		var p = this.pkg();
-		if (mode === 'gift' && p && !/^\d/.test(String(p.price || '').trim())) this.sel.pkg = null;
+		this.fixPkg();
 		this.errors = {}; this.alert = '';
 		this.render();
+	};
+	/** Stilul cardului, ca pe server: Crăciun dacă evenimentul sau ocazia sunt de Crăciun. */
+	App.prototype.modelStyle = function () {
+		return this.gift.occasion === 'Crăciun' || XMAS.test(this.theme.title) ? 'craciun' : 'negru';
+	};
+	App.prototype.modelImg = function (cls, sizes) {
+		var m = this.cfg.model, st = m && m.styles && m.styles[this.modelStyle()];
+		if (!st) return null;
+		return h('img', { class: cls, src: st.src, srcset: st.small + ' 700w, ' + st.src + ' 1400w', sizes: sizes, width: m.w, height: m.h, alt: st.alt, loading: 'lazy', decoding: 'async' });
+	};
+	App.prototype.lastDay = function () {
+		var d = this.theme.days;
+		return d.length ? d[d.length - 1].date : '';
 	};
 
 	App.prototype.day = function (date) {
@@ -162,7 +205,7 @@
 	App.prototype.subLabel = function (i) {
 		var s = this.sel, p = this.pkg();
 		if (i === 0 && p) return p.name + (!this.isGift() && s.people > 1 ? ' · ' + s.people + ' pers.' : '');
-		if (i === 1 && this.isGift()) return this.gift.to ? 'pentru ' + this.gift.to : '';
+		if (i === 1 && this.isGift()) return this.gift.to.trim() ? 'pentru ' + this.gift.to.trim() : '';
 		if (i === 1 && s.date && s.time) return this.dayLabel(s.date) + ', ' + s.time;
 		if (i === 2 && s.first) return s.first + ' ' + s.last;
 		return '';
@@ -203,6 +246,11 @@
 		if (g.to.trim().length < 2) e.gto = 'Scrie numele celui care primește cardul.';
 		if (g.from.trim().length < 2) e.gfrom = 'Scrie din partea cui este cadoul.';
 		if (g.remail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(g.remail.trim())) e.gremail = 'Adresa nu pare corectă.';
+		if (g.remail.trim() && g.sendAt) {
+			var last = this.lastDay();
+			if (!/^\d{4}-\d{2}-\d{2}$/.test(g.sendAt) || g.sendAt < today(1)) e.gsend = 'Alege o dată din viitor sau lasă gol (cardul pleacă imediat).';
+			else if (last && g.sendAt > last) e.gsend = 'Alege o dată până la ' + this.dayLabel(last) + ', ultima zi cu ședințe.';
+		}
 		this.errors = e;
 		return !Object.keys(e).length;
 	};
@@ -231,8 +279,14 @@
 			.catch(function (err) {
 				self.busy = false;
 				self.alert = err.message;
-				var map = { stm_gift_package: [0, ''], stm_gift_to: [1, 'gto'], stm_gift_from: [1, 'gfrom'], stm_gift_remail: [1, 'gremail'], stm_gift_name: [2, 'first'], stm_gift_phone: [2, 'phone'], stm_gift_email: [2, 'email'], stm_gift_consent: [2, 'consent'] };
+				// Eroarea de la server (și de pe site-ul principal, în modul remote) ajunge lângă câmpul ei.
+				var map = {
+					stm_gift_theme: [0, ''], stm_gift_package: [0, ''],
+					stm_gift_to: [1, 'gto'], stm_gift_from: [1, 'gfrom'], stm_gift_remail: [1, 'gremail'], stm_gift_sendat: [1, 'gsend'],
+					stm_gift_name: [2, 'first'], stm_gift_phone: [2, 'phone'], stm_gift_email: [2, 'email'], stm_gift_consent: [2, 'consent']
+				};
 				var m = map[err.code];
+				self.errors = {};
 				if (m) { self.step = m[0]; if (m[1]) { self.errors[m[1]] = err.message; self.alert = ''; } }
 				self.render();
 			});
@@ -285,7 +339,7 @@
 	App.prototype.render = function () {
 		var self = this, t = this.theme;
 		this.el.innerHTML = '';
-		var bookable = t.open && t.days.some(function (d) { return d.slots.some(function (s) { return s.state === 'free'; }); });
+		var bookable = this.bookable();
 
 		if (this.step === 4) {
 			this.el.appendChild(this.renderSide());
@@ -296,7 +350,11 @@
 			this.el.className = 'stm-card stm-card--closed';
 			this.el.appendChild(h('div', { class: 'stm-closed' }, [
 				h('strong', { text: t.title }),
-				h('p', { text: !t.days.length ? 'Nu mai sunt date disponibile pentru acest eveniment.' : 'Toate locurile sunt rezervate sau rezervările s-au închis. Scrie-ne și te anunțăm dacă se eliberează un loc.' })
+				h('p', { text: !t.days.length ? 'Nu mai sunt date disponibile pentru acest eveniment.' : 'Toate locurile sunt rezervate sau rezervările s-au închis. Scrie-ne și te anunțăm dacă se eliberează un loc.' }),
+				this.giftOn ? h('p', { class: 'stm-closed-gift' }, [
+					'Poți oferi în continuare ședința cadou: cel care primește cardul își alege ora când se eliberează un loc.',
+					h('button', { type: 'button', class: 'stm-btn', text: this.giftTitle(), onclick: function () { self.step = 0; self.alert = ''; self.setMode('gift'); } })
+				]) : null
 			]));
 			return;
 		}
@@ -308,7 +366,7 @@
 			h('h3', { text: this.steps()[this.step].label })
 		]);
 		var foot = h('div', { class: 'stm-foot' }, [
-			this.step === 3 ? h('span', { class: 'stm-foot-note', text: this.isGift() ? 'Plata prin transfer sau pe WhatsApp.' : 'Plata se face la fața locului.' }) : null,
+			this.step === 3 ? h('span', { class: 'stm-foot-note', text: this.isGift() ? 'Detaliile de plată vin pe email.' : 'Plata se face la fața locului.' }) : null,
 			this.step > 0 ? h('button', { class: 'stm-btn stm-btn-ghost', type: 'button', text: 'Înapoi', onclick: function () { self.go(self.step - 1); } }) : null,
 			h('button', {
 				class: 'stm-btn', type: 'button', disabled: !canNext || this.busy,
@@ -363,18 +421,19 @@
 			])
 		]);
 		var desc = t.content ? h('div', { class: 'stm-intro-desc', html: t.content }) : null;
-		var gift = this.isGift();
+		var gift = this.isGift(), canBook = this.bookable();
 		var choice = this.giftOn ? h('div', { class: 'stm-mode', role: 'radiogroup', 'aria-label': 'Pentru cine este ședința' }, [
-			h('button', { type: 'button', role: 'radio', 'aria-checked': gift ? 'false' : 'true', class: 'stm-mode-opt' + (gift ? '' : ' is-selected'), onclick: function () { self.setMode('book'); } }, [
+			h('button', { type: 'button', role: 'radio', 'aria-checked': gift ? 'false' : 'true', disabled: !canBook, class: 'stm-mode-opt' + (gift ? '' : ' is-selected'), onclick: function () { self.setMode('book'); } }, [
 				h('span', { class: 'stm-mode-icon', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>' }),
-				h('span', { class: 'stm-mode-text' }, [h('strong', { text: 'Rezerv pentru noi' }), h('span', { text: 'alegi acum ziua și ora' })])
+				h('span', { class: 'stm-mode-text' }, [h('strong', { text: 'Rezerv pentru noi' }), h('span', { text: canBook ? 'alegi acum ziua și ora' : 'nu mai sunt ore libere momentan' })])
 			]),
 			h('button', { type: 'button', role: 'radio', 'aria-checked': gift ? 'true' : 'false', class: 'stm-mode-opt' + (gift ? ' is-selected' : ''), onclick: function () { self.setMode('gift'); } }, [
 				h('span', { class: 'stm-mode-icon', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="9.5" width="17" height="11" rx="1.5"/><path d="M2.5 6.5h19v3h-19zM12 6.5v14M12 6.5C10.5 3 6.5 3 7 5.4c.3 1.4 3 1.1 5 1.1zm0 0c1.5-3.5 5.5-3.5 5-1.1-.3 1.4-3 1.1-5 1.1z"/></svg>' }),
 				h('span', { class: 'stm-mode-text' }, [h('strong', { text: this.giftTitle() }), h('span', { text: 'card personalizat, primit pe email' })])
-			])
+			]),
+			this.cfg.model ? h('figure', { class: 'stm-mode-model' }, [this.modelImg('', '150px'), h('figcaption', { text: 'Așa arată cardul cadou' })]) : null
 		]) : null;
-		var list = gift ? t.packages.filter(function (p) { return /^\d/.test(String(p.price || '').trim()); }) : t.packages;
+		var list = gift ? t.packages.filter(priced) : t.packages;
 		var packages = h('div', { class: 'stm-packages', role: 'radiogroup' }, list.map(function (p) {
 			return h('button', {
 				type: 'button', role: 'radio', 'aria-checked': s.pkg === p.id ? 'true' : 'false',
@@ -464,10 +523,11 @@
 	};
 
 	App.prototype.renderGift = function () {
-		var self = this, g = this.gift, e = this.errors, occ = this.cfg.occasions || ['Cu drag'];
+		var self = this, g = this.gift, e = this.errors, occ = this.cfg.occasions || ['Cu drag'], id = this.uid;
 		function field(key, label, input, wide, required, hint) {
+			input.id = id + '-' + key;
 			return h('div', { class: 'stm-field' + (wide ? ' is-wide' : '') + (e[key] ? ' has-error' : '') }, [
-				h('label', { class: 'stm-label' }, [required ? h('span', { class: 'req', text: '*' }) : null, label]),
+				h('label', { class: 'stm-label', for: input.id }, [required ? h('span', { class: 'req', text: '*' }) : null, label]),
 				input,
 				hint ? h('p', { class: 'stm-hint', text: hint }) : null,
 				e[key] ? h('div', { class: 'stm-error', text: e[key] }) : null
@@ -479,7 +539,12 @@
 				class: 'stm-input', type: area ? null : 'text', autocomplete: 'off',
 				oninput: function (ev) {
 					g[prop] = ev.target.value;
-					if (key) delete e[key];
+					if (key && e[key]) {
+						delete e[key];
+						var wrap = ev.target.closest('.stm-field'), msg = wrap && wrap.querySelector('.stm-error');
+						if (wrap) wrap.classList.remove('has-error');
+						if (msg) msg.remove();
+					}
 					if (prop === 'message') { var c = self.el.querySelector('.stm-count'); if (c) c.textContent = (150 - g.message.length) + ' caractere rămase'; }
 					if (prop === 'remail') { var d = self.el.querySelector('.stm-sendat'); if (d) d.hidden = !g.remail.trim(); }
 					if (prop === 'to' || prop === 'from') self.updateNext();
@@ -488,15 +553,25 @@
 			el.value = g[prop];
 			return el;
 		}
-		var sel = h('select', { class: 'stm-input', onchange: function (ev) { g.occasion = ev.target.value; } }, occ.map(function (o) {
+		var model = this.cfg.model ? h('figure', { class: 'stm-gift-model is-wide' }, [
+			this.modelImg('', '(max-width: 720px) 100vw, 600px'),
+			h('figcaption', { text: 'Așa arată cardul. Numele, mesajul și codul tău apar pe el; îl primești pe email ca imagine și PDF, gata de trimis sau de printat.' })
+		]) : null;
+		var sel = h('select', { class: 'stm-input', onchange: function (ev) {
+			g.occasion = ev.target.value;
+			// Cardul de Crăciun are alt șablon: modelul se schimbă odată cu ocazia.
+			var img = self.el.querySelector('.stm-gift-model img'), fresh = self.modelImg('', '(max-width: 720px) 100vw, 600px');
+			if (img && fresh && img.getAttribute('src') !== fresh.getAttribute('src')) img.parentNode.replaceChild(fresh, img);
+		} }, occ.map(function (o) {
 			var op = h('option', { value: o, text: o }); op.selected = o === g.occasion; return op;
 		}));
-		var send = field('gsend', 'Trimite-l pe data de', input('sendAt', { type: 'date' }), false, false, 'Gol = imediat ce e gata cardul.');
+		var send = field('gsend', 'Trimite-l pe data de', input('sendAt', { type: 'date', min: today(1), max: this.lastDay() || null }, 'gsend'), false, false, 'Gol = imediat ce e gata cardul.');
 		send.classList.add('stm-sendat');
 		send.hidden = !g.remail.trim();
 		return h('form', { class: 'stm-grid', novalidate: true, onsubmit: function (ev) { ev.preventDefault(); self.next(); } }, [
-			field('gto', 'Pentru (numele de pe card)', input('to', { maxlength: 40, placeholder: 'ex. Familia Ionescu' }, 'gto'), false, true),
-			field('gfrom', 'Din partea', input('from', { maxlength: 40, placeholder: 'ex. Andrei și Maria' }, 'gfrom'), false, true),
+			model,
+			field('gto', 'Pentru (numele de pe card)', input('to', { maxlength: 30, placeholder: 'ex. Familia Ionescu' }, 'gto'), false, true),
+			field('gfrom', 'Din partea', input('from', { maxlength: 30, placeholder: 'ex. Andrei și Maria' }, 'gfrom'), false, true),
 			field('gocc', 'Ocazia', sel, true, false),
 			field('gmsg', 'Mesaj pe card (opțional)', input('message', { rows: 2, maxlength: 150, placeholder: 'Un gând scurt, apare pe card' }), true, false),
 			h('p', { class: 'stm-hint stm-count stm-wide-row', text: (150 - g.message.length) + ' caractere rămase' }),
@@ -522,6 +597,7 @@
 		}
 		function field(key, label, type, wide, required, placeholder) {
 			var input = h(type === 'textarea' ? 'textarea' : 'input', {
+				id: self.uid + '-' + key,
 				class: 'stm-input', type: type === 'textarea' ? null : type, placeholder: placeholder || '', rows: type === 'textarea' ? 3 : null,
 				inputmode: type === 'tel' ? 'tel' : null,
 				autocomplete: { first: 'given-name', last: 'family-name', email: 'email', phone: 'tel' }[key] || 'off',
@@ -529,7 +605,7 @@
 			});
 			input.value = s[key];
 			return h('div', { class: 'stm-field' + (wide ? ' is-wide' : '') + (e[key] ? ' has-error' : '') }, [
-				h('label', { class: 'stm-label' }, [required ? h('span', { class: 'req', text: '*' }) : null, label]),
+				h('label', { class: 'stm-label', for: input.id }, [required ? h('span', { class: 'req', text: '*' }) : null, label]),
 				input,
 				e[key] ? h('div', { class: 'stm-error', text: e[key] }) : null
 			]);
@@ -564,7 +640,7 @@
 				['Din partea', g.from.trim()],
 				['Ocazia', g.occasion],
 				['Mesaj', g.message.trim()],
-				['Trimis lui', g.remail.trim() ? g.remail.trim() + (g.sendAt ? ', pe ' + this.dayLabel(g.sendAt) : '') : 'doar ție, îl dai tu mai departe'],
+				['Trimitere', g.remail.trim() ? 'pe email la ' + g.remail.trim() + (g.sendAt ? ', pe ' + this.dayLabel(g.sendAt) : ', odată cu tine') : 'doar ție, îl dai tu mai departe'],
 				['Comandat de', s.first.trim() + ' ' + s.last.trim()],
 				['Contact', s.email.trim() + ' · ' + s.phone.trim()]
 			].filter(function (r) { return r[1]; });
@@ -659,10 +735,13 @@
 			h('div', { class: 'stm-success-icon' }),
 			h('h3', { text: r.issued ? 'Cardul cadou este gata!' : 'Comanda cardului cadou a fost trimisă!' }),
 			h('p', { text: r.message || '' }),
+			r.image ? h('a', { class: 'stm-gift-card', href: r.preview || r.image, target: '_blank', rel: 'noopener' }, [
+				h('img', { src: r.image, alt: 'Cardul cadou ' + (r.code || '') + ' pentru ' + this.gift.to.trim(), width: 2550, height: 1050, loading: 'lazy', decoding: 'async' })
+			]) : null,
 			h('div', { class: 'stm-summary' }, [
 				h('div', { class: 'stm-summary-row' }, [h('span', { text: 'Codul cardului' }), h('strong', { text: r.code || '' })]),
 				h('div', { class: 'stm-summary-row' }, [h('span', { text: 'Valoare' }), h('strong', { text: r.value || '' })]),
-				h('div', { class: 'stm-summary-row' }, [h('span', { text: 'Pentru' }), h('strong', { text: this.gift.to })])
+				h('div', { class: 'stm-summary-row' }, [h('span', { text: 'Pentru' }), h('strong', { text: this.gift.to.trim() })])
 			]),
 			r.payment ? h('div', { class: 'stm-gift-pay' }, [h('strong', { text: 'Cum plătești' }), h('p', { html: r.payment })]) : null,
 			r.preview ? h('div', { class: 'stm-success-actions' }, [h('a', { class: 'stm-btn', href: r.preview, target: '_blank', rel: 'noopener', text: 'Descarcă cardul (PDF)' })]) : null
@@ -675,10 +754,13 @@
 		var cfg = {};
 		try { cfg = JSON.parse(root.getAttribute('data-config') || '{}'); } catch (e) { cfg = {}; }
 		var id = parseInt(root.getAttribute('data-theme'), 10) || 0;
-		api(root, '/themes', id ? 'id=' + id : '')
+		// „_” ocolește orice cache (pagina poate fi servită din LiteSpeed Cache, programul nu).
+		api(root, '/themes', (id ? 'id=' + id + '&' : '') + '_=' + Date.now())
 			.then(function (data) {
 				root.innerHTML = '';
 				var themes = data.themes || [];
+				// Setările de card cadou vin la zi de la server (pe un site secundar, de pe site-ul principal).
+				if (data.gift) { cfg.gift = !!data.gift.on; cfg.giftInstant = !!data.gift.instant; }
 				if (!themes.length) {
 					root.appendChild(h('p', { class: 'stm-note', text: 'Momentan nu sunt mini-ședințe programate. Revino curând!' }));
 					return;
