@@ -87,14 +87,7 @@ class STM_Emails {
 	}
 
 	private static function send( $to, $subject, $html, $reply_to = '' ) {
-		if ( ! is_email( $to ) ) {
-			return false;
-		}
-		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
-		if ( $reply_to && is_email( $reply_to ) ) {
-			$headers[] = 'Reply-To: ' . $reply_to;
-		}
-		return wp_mail( $to, $subject, $html, $headers );
+		return STM_Helpers::mail( $to, $subject, $html, $reply_to );
 	}
 
 	private static function admin_emails() {

@@ -18,7 +18,6 @@ class STM_Frontend {
 	public static function register() {
 		wp_register_style( 'stm-front', STM_URL . 'assets/css/front.css', array(), STM_VERSION );
 		wp_register_script( 'stm-front', STM_URL . 'assets/js/front.js', array(), STM_VERSION, true );
-		wp_register_script( 'stm-gift', STM_URL . 'assets/js/gift.js', array(), STM_VERSION, true );
 	}
 
 	/**
@@ -26,14 +25,21 @@ class STM_Frontend {
 	 * „Se încarcă programul…” până când vizitatorul dă scroll sau atinge ecranul.
 	 */
 	public static function script_tag( $tag, $handle ) {
-		if ( 'stm-front' === $handle || 'stm-gift' === $handle ) {
+		if ( 'stm-front' === $handle ) {
 			$tag = str_replace( '<script ', '<script data-no-optimize="1" data-no-defer="1" data-no-minify="1" data-cfasync="false" ', $tag );
 		}
 		return $tag;
 	}
 
 	public static function shortcode( $atts ) {
-		$atts = shortcode_atts( array( 'id' => 0 ), $atts, 'sterea_mini' );
+		$atts = shortcode_atts(
+			array(
+				'id'     => 0,
+				'cadou'  => 0,
+			),
+			$atts,
+			'sterea_mini'
+		);
 
 		wp_enqueue_style( 'stm-front' );
 		$accent = sanitize_hex_color( (string) STM_Helpers::get( 'accent' ) );
@@ -43,8 +49,13 @@ class STM_Frontend {
 		wp_enqueue_script( 'stm-front' );
 
 		$api    = add_query_arg( 'rest_route', '/' . STM_Rest::NS, home_url( '/' ) );
+		$gift   = STM_Helpers::is_remote() || STM_Helpers::get( 'gift_enabled' );
 		$config = array(
-			'phone' => (string) STM_Helpers::get( 'contact_phone' ),
+			'phone'       => (string) STM_Helpers::get( 'contact_phone' ),
+			'gift'        => (bool) $gift,
+			'giftFirst'   => $gift && (bool) absint( $atts['cadou'] ),
+			'giftInstant' => 'instant' === STM_Helpers::get( 'gift_send' ),
+			'occasions'   => STM_Giftcards::occasions(),
 		);
 
 		return sprintf(

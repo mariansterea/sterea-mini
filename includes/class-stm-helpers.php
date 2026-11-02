@@ -41,6 +41,9 @@ class STM_Helpers {
 			'gift_terms'    => 'Rezervarea se face pe blog.mariansterea.ro, cu codul de pe card',
 			'gift_success_text' => 'Mulțumim! Ai primit pe email detaliile de plată. După confirmarea plății, cardul cadou ajunge pe email, gata de dăruit.',
 			'gift_book_url' => '',
+			'gift_send'     => 'paid',
+			'mail_from_name' => 'Marian Sterea',
+			'mail_from'     => '',
 		);
 	}
 
@@ -346,6 +349,68 @@ class STM_Helpers {
 			return '';
 		}
 		return is_numeric( $price ) ? $price . ' lei' : $price;
+	}
+
+	/* ---------- Email ---------- */
+
+	const MAIL_LOG = 'stm_mail_log';
+
+	/** @var string Ultima eroare raportată de wp_mail (acțiunea wp_mail_failed). */
+	private static $mail_error = '';
+
+	/**
+	 * Trimite un email HTML cu expeditorul din Setări și îl trece în jurnal (ultimele 30).
+	 */
+	public static function mail( $to, $subject, $html, $reply_to = '', $attachments = array() ) {
+		if ( ! is_email( $to ) ) {
+			return false;
+		}
+		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+		$name    = trim( str_replace( array( '"', "\r", "\n" ), '', (string) self::get( 'mail_from_name' ) ) );
+		$from    = sanitize_email( (string) self::get( 'mail_from' ) );
+		if ( $from ) {
+			$headers[] = 'From: ' . ( $name ? '"' . $name . '" ' : '' ) . '<' . $from . '>';
+		}
+		if ( $reply_to && is_email( $reply_to ) ) {
+			$headers[] = 'Reply-To: ' . $reply_to;
+		}
+		$name_filter = function () use ( $name ) {
+			return $name;
+		};
+		$fail = function ( $error ) {
+			self::$mail_error = is_wp_error( $error ) ? $error->get_error_message() : 'eroare necunoscută';
+		};
+		self::$mail_error = '';
+		if ( $name && ! $from ) {
+			add_filter( 'wp_mail_from_name', $name_filter, 99 );
+		}
+		add_action( 'wp_mail_failed', $fail );
+		$ok = wp_mail( $to, $subject, $html, $headers, $attachments );
+		remove_action( 'wp_mail_failed', $fail );
+		remove_filter( 'wp_mail_from_name', $name_filter, 99 );
+		self::log_mail( $to, $subject, $ok, self::$mail_error );
+		return $ok;
+	}
+
+	private static function log_mail( $to, $subject, $ok, $error ) {
+		$log = get_option( self::MAIL_LOG, array() );
+		$log = is_array( $log ) ? $log : array();
+		array_unshift(
+			$log,
+			array(
+				'time'    => self::now()->format( 'Y-m-d H:i:s' ),
+				'to'      => $to,
+				'subject' => mb_substr( (string) $subject, 0, 120 ),
+				'ok'      => $ok ? 1 : 0,
+				'error'   => mb_substr( (string) $error, 0, 300 ),
+			)
+		);
+		update_option( self::MAIL_LOG, array_slice( $log, 0, 30 ), false );
+	}
+
+	public static function mail_log() {
+		$log = get_option( self::MAIL_LOG, array() );
+		return is_array( $log ) ? $log : array();
 	}
 
 	public static function client_ip() {

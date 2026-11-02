@@ -8,6 +8,12 @@
 		{ key: 'info', label: 'Datele tale' },
 		{ key: 'confirm', label: 'Confirmare' }
 	];
+	var GIFT_STEPS = [
+		{ key: 'package', label: 'Pachet' },
+		{ key: 'card', label: 'Cardul cadou' },
+		{ key: 'info', label: 'Datele tale' },
+		{ key: 'confirm', label: 'Confirmare' }
+	];
 	var WEEKDAYS = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
 	var MONTHS = ['ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie', 'iulie', 'august', 'septembrie', 'octombrie', 'noiembrie', 'decembrie'];
 
@@ -84,6 +90,10 @@
 		this.theme = theme;
 		this.step = 0;
 		this.sel = { pkg: theme.packages.length === 1 ? theme.packages[0].id : null, people: Math.min(2, Math.max(1, theme.max_people || 1)), date: null, time: null, first: '', last: '', email: '', phone: '', notes: '', consent: false, coupon: '' };
+		// Mod „cadou”: aceeași ședință, dar se comandă un card cadou în loc de o oră (destinatarul alege ora).
+		this.giftOn = !!(cfg.gift && theme.packages.some(function (p) { return /^\d/.test(String(p.price || '').trim()); }));
+		this.mode = this.giftOn && cfg.giftFirst ? 'gift' : 'book';
+		this.gift = { occasion: (cfg.occasions || [])[0] || 'Cu drag', to: '', from: '', message: '', remail: '', sendAt: '' };
 		this.coupon = null; // { code, label, discount, total } după validare pe server
 		this.couponMsg = '';
 		this.errors = {};
@@ -109,6 +119,21 @@
 		}).catch(function () { /* păstrăm programul deja încărcat */ });
 	};
 
+	App.prototype.isGift = function () { return this.mode === 'gift'; };
+	App.prototype.steps = function () { return this.isGift() ? GIFT_STEPS : STEPS; };
+	App.prototype.giftTitle = function () {
+		return /cr[ăa]ciun/i.test(this.theme.title) ? 'Oferă cadou o ședință foto de Crăciun' : 'Oferă cadou această ședință foto';
+	};
+	App.prototype.setMode = function (mode) {
+		if (mode === this.mode) return;
+		this.mode = mode;
+		this.coupon = null; this.couponMsg = '';
+		var p = this.pkg();
+		if (mode === 'gift' && p && !/^\d/.test(String(p.price || '').trim())) this.sel.pkg = null;
+		this.errors = {}; this.alert = '';
+		this.render();
+	};
+
 	App.prototype.day = function (date) {
 		return this.theme.days.filter(function (d) { return d.date === date; })[0] || null;
 	};
@@ -129,13 +154,15 @@
 	App.prototype.done = function (i) {
 		var s = this.sel;
 		if (i === 0) return !!this.pkg();
+		if (i === 1 && this.isGift()) return this.gift.to.trim().length >= 2 && this.gift.from.trim().length >= 2;
 		if (i === 1) return !!(s.date && s.time);
 		if (i === 2) return !!(s.first && s.last && s.email && s.phone);
 		return false;
 	};
 	App.prototype.subLabel = function (i) {
 		var s = this.sel, p = this.pkg();
-		if (i === 0 && p) return p.name + (s.people > 1 ? ' · ' + s.people + ' pers.' : '');
+		if (i === 0 && p) return p.name + (!this.isGift() && s.people > 1 ? ' · ' + s.people + ' pers.' : '');
+		if (i === 1 && this.isGift()) return this.gift.to ? 'pentru ' + this.gift.to : '';
 		if (i === 1 && s.date && s.time) return this.dayLabel(s.date) + ', ' + s.time;
 		if (i === 2 && s.first) return s.first + ' ' + s.last;
 		return '';
@@ -145,7 +172,7 @@
 		this.alert = '';
 		this.errors = {};
 		this.step = i;
-		if (i === 1) this.reload();
+		if (i === 1 && !this.isGift()) this.reload();
 		this.render();
 		if (window.innerWidth < 720) {
 			var top = this.el.getBoundingClientRect().top + window.pageYOffset - 16;
@@ -154,6 +181,7 @@
 	};
 
 	App.prototype.next = function () {
+		if (this.step === 1 && this.isGift() && !this.validateGift()) { this.render(); return; }
 		if (this.step === 2 && !this.validate()) { this.render(); return; }
 		if (this.step === 3) { this.submit(); return; }
 		this.go(this.step + 1);
@@ -170,8 +198,49 @@
 		return !Object.keys(e).length;
 	};
 
+	App.prototype.validateGift = function () {
+		var g = this.gift, e = {};
+		if (g.to.trim().length < 2) e.gto = 'Scrie numele celui care primește cardul.';
+		if (g.from.trim().length < 2) e.gfrom = 'Scrie din partea cui este cadoul.';
+		if (g.remail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(g.remail.trim())) e.gremail = 'Adresa nu pare corectă.';
+		this.errors = e;
+		return !Object.keys(e).length;
+	};
+
+	App.prototype.submitGift = function () {
+		var self = this, s = this.sel, g = this.gift;
+		if (this.busy) return;
+		this.busy = true;
+		this.alert = '';
+		this.render();
+		var data = {
+			kind: 'package', theme: this.theme.id, package: s.pkg,
+			occasion: g.occasion, to: g.to.trim(), from: g.from.trim(), message: g.message.trim(),
+			buyer_name: (s.first.trim() + ' ' + s.last.trim()).trim(), buyer_email: s.email.trim(), buyer_phone: s.phone.trim(),
+			recipient_email: g.remail.trim(), send_at: g.remail.trim() ? g.sendAt : '',
+			consent: s.consent ? '1' : '', website: this.hp ? this.hp.value : ''
+		};
+		api(this.root, '/giftcard', '', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(data) })
+			.then(function (res) {
+				self.busy = false;
+				self.result = res;
+				self.step = 4;
+				self.render();
+				self.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			})
+			.catch(function (err) {
+				self.busy = false;
+				self.alert = err.message;
+				var map = { stm_gift_package: [0, ''], stm_gift_to: [1, 'gto'], stm_gift_from: [1, 'gfrom'], stm_gift_remail: [1, 'gremail'], stm_gift_name: [2, 'first'], stm_gift_phone: [2, 'phone'], stm_gift_email: [2, 'email'], stm_gift_consent: [2, 'consent'] };
+				var m = map[err.code];
+				if (m) { self.step = m[0]; if (m[1]) { self.errors[m[1]] = err.message; self.alert = ''; } }
+				self.render();
+			});
+	};
+
 	App.prototype.submit = function () {
 		var self = this, s = this.sel;
+		if (this.isGift()) { this.submitGift(); return; }
 		if (this.busy) return;
 		this.busy = true;
 		this.alert = '';
@@ -220,10 +289,10 @@
 
 		if (this.step === 4) {
 			this.el.appendChild(this.renderSide());
-			this.el.appendChild(h('div', { class: 'stm-main' }, [h('div', { class: 'stm-body' }, [this.renderSuccess()])]));
+			this.el.appendChild(h('div', { class: 'stm-main' }, [h('div', { class: 'stm-body' }, [this.isGift() ? this.renderGiftSuccess() : this.renderSuccess()])]));
 			return;
 		}
-		if (!bookable) {
+		if (!bookable && !this.isGift()) {
 			this.el.className = 'stm-card stm-card--closed';
 			this.el.appendChild(h('div', { class: 'stm-closed' }, [
 				h('strong', { text: t.title }),
@@ -232,21 +301,22 @@
 			return;
 		}
 
-		var body = [this.renderPackage, this.renderWhen, this.renderInfo, this.renderConfirm][this.step].call(this);
-		var canNext = this.done(this.step) || this.step === 2 || this.step === 3;
+		var body = [this.renderPackage, this.isGift() ? this.renderGift : this.renderWhen, this.renderInfo, this.renderConfirm][this.step].call(this);
+		var canNext = this.done(this.step) || (this.step === 1 && this.isGift()) || this.step === 2 || this.step === 3;
 		var head = h('div', { class: 'stm-head' }, [
 			this.step > 0 ? h('button', { class: 'stm-back', type: 'button', 'aria-label': 'Pasul anterior', html: '&#8249;', onclick: function () { self.go(self.step - 1); } }) : null,
-			h('h3', { text: STEPS[this.step].label })
+			h('h3', { text: this.steps()[this.step].label })
 		]);
 		var foot = h('div', { class: 'stm-foot' }, [
-			this.step === 3 ? h('span', { class: 'stm-foot-note', text: 'Plata se face la fața locului.' }) : null,
+			this.step === 3 ? h('span', { class: 'stm-foot-note', text: this.isGift() ? 'Plata prin transfer sau pe WhatsApp.' : 'Plata se face la fața locului.' }) : null,
 			this.step > 0 ? h('button', { class: 'stm-btn stm-btn-ghost', type: 'button', text: 'Înapoi', onclick: function () { self.go(self.step - 1); } }) : null,
 			h('button', {
 				class: 'stm-btn', type: 'button', disabled: !canNext || this.busy,
-				text: this.step === 3 ? (this.busy ? 'Se trimite…' : 'Trimite rezervarea') : 'Continuă',
+				text: this.step === 3 ? (this.busy ? 'Se trimite…' : (this.isGift() ? 'Comandă cardul cadou' : 'Trimite rezervarea')) : 'Continuă',
 				onclick: function () { self.next(); }
 			})
 		]);
+		this.el.className = 'stm-card' + (this.isGift() ? ' is-gift' : '');
 		this.el.appendChild(this.renderSide());
 		this.el.appendChild(h('div', { class: 'stm-main' }, [
 			head,
@@ -257,7 +327,7 @@
 
 	App.prototype.renderSide = function () {
 		var self = this;
-		var items = STEPS.map(function (st, i) {
+		var items = this.steps().map(function (st, i) {
 			var done = (self.done(i) && i < self.step) || self.step === 4;
 			var active = i === self.step;
 			var canClick = i < self.step && self.step < 4;
@@ -274,7 +344,7 @@
 		});
 		var phone = (this.cfg.phone || '').trim();
 		return h('aside', { class: 'stm-side' }, [
-			h('p', { class: 'stm-side-title', text: 'Rezervare' }),
+			h('p', { class: 'stm-side-title', text: this.isGift() ? 'Card cadou' : 'Rezervare' }),
 			h('ol', { class: 'stm-steps' }, items),
 			phone ? h('div', { class: 'stm-side-foot' }, [h('a', { href: 'tel:' + phone.replace(/\s/g, ''), text: 'Întrebări? ' + phone })]) : null
 		]);
@@ -293,7 +363,19 @@
 			])
 		]);
 		var desc = t.content ? h('div', { class: 'stm-intro-desc', html: t.content }) : null;
-		var packages = h('div', { class: 'stm-packages', role: 'radiogroup' }, t.packages.map(function (p) {
+		var gift = this.isGift();
+		var choice = this.giftOn ? h('div', { class: 'stm-mode', role: 'radiogroup', 'aria-label': 'Pentru cine este ședința' }, [
+			h('button', { type: 'button', role: 'radio', 'aria-checked': gift ? 'false' : 'true', class: 'stm-mode-opt' + (gift ? '' : ' is-selected'), onclick: function () { self.setMode('book'); } }, [
+				h('span', { class: 'stm-mode-icon', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>' }),
+				h('span', { class: 'stm-mode-text' }, [h('strong', { text: 'Rezerv pentru noi' }), h('span', { text: 'alegi acum ziua și ora' })])
+			]),
+			h('button', { type: 'button', role: 'radio', 'aria-checked': gift ? 'true' : 'false', class: 'stm-mode-opt' + (gift ? ' is-selected' : ''), onclick: function () { self.setMode('gift'); } }, [
+				h('span', { class: 'stm-mode-icon', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="9.5" width="17" height="11" rx="1.5"/><path d="M2.5 6.5h19v3h-19zM12 6.5v14M12 6.5C10.5 3 6.5 3 7 5.4c.3 1.4 3 1.1 5 1.1zm0 0c1.5-3.5 5.5-3.5 5-1.1-.3 1.4-3 1.1-5 1.1z"/></svg>' }),
+				h('span', { class: 'stm-mode-text' }, [h('strong', { text: this.giftTitle() }), h('span', { text: 'card personalizat, primit pe email' })])
+			])
+		]) : null;
+		var list = gift ? t.packages.filter(function (p) { return /^\d/.test(String(p.price || '').trim()); }) : t.packages;
+		var packages = h('div', { class: 'stm-packages', role: 'radiogroup' }, list.map(function (p) {
 			return h('button', {
 				type: 'button', role: 'radio', 'aria-checked': s.pkg === p.id ? 'true' : 'false',
 				class: 'stm-package' + (s.pkg === p.id ? ' is-selected' : ''),
@@ -304,7 +386,7 @@
 				h('span', { class: 'stm-package-price', text: priceLabel(p.price) })
 			]);
 		}));
-		var people = t.max_people > 1 ? h('div', null, [
+		var people = t.max_people > 1 && !gift ? h('div', null, [
 			h('label', { class: 'stm-label', text: 'Câte persoane apar în poze?' }),
 			h('div', { class: 'stm-stepper' }, [
 				h('button', { type: 'button', text: '−', disabled: s.people <= 1, 'aria-label': 'Mai puține', onclick: function () { s.people = Math.max(1, s.people - 1); self.render(); } }),
@@ -313,7 +395,9 @@
 			]),
 			h('p', { class: 'stm-hint', text: 'Maximum ' + t.max_people + ' persoane la o ședință.' })
 		]) : null;
-		return h('div', null, [intro, desc, h('label', { class: 'stm-label' }, [h('span', { class: 'req', text: '*' }), 'Alege pachetul:']), packages, people]);
+		return h('div', null, [intro, desc, choice,
+			h('label', { class: 'stm-label' }, [h('span', { class: 'req', text: '*' }), gift ? 'Alege pachetul pe care îl oferi:' : 'Alege pachetul:']), packages, people,
+			gift ? h('p', { class: 'stm-hint', text: 'Cel care primește cardul își alege singur ziua și ora, cu codul de pe card.' }) : null]);
 	};
 
 	App.prototype.renderWhen = function () {
@@ -379,6 +463,53 @@
 		if (el && window.innerWidth < 720) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	};
 
+	App.prototype.renderGift = function () {
+		var self = this, g = this.gift, e = this.errors, occ = this.cfg.occasions || ['Cu drag'];
+		function field(key, label, input, wide, required, hint) {
+			return h('div', { class: 'stm-field' + (wide ? ' is-wide' : '') + (e[key] ? ' has-error' : '') }, [
+				h('label', { class: 'stm-label' }, [required ? h('span', { class: 'req', text: '*' }) : null, label]),
+				input,
+				hint ? h('p', { class: 'stm-hint', text: hint }) : null,
+				e[key] ? h('div', { class: 'stm-error', text: e[key] }) : null
+			]);
+		}
+		function input(prop, attrs, key) {
+			var area = attrs && attrs.rows;
+			var el = h(area ? 'textarea' : 'input', Object.assign({
+				class: 'stm-input', type: area ? null : 'text', autocomplete: 'off',
+				oninput: function (ev) {
+					g[prop] = ev.target.value;
+					if (key) delete e[key];
+					if (prop === 'message') { var c = self.el.querySelector('.stm-count'); if (c) c.textContent = (150 - g.message.length) + ' caractere rămase'; }
+					if (prop === 'remail') { var d = self.el.querySelector('.stm-sendat'); if (d) d.hidden = !g.remail.trim(); }
+					if (prop === 'to' || prop === 'from') self.updateNext();
+				}
+			}, attrs || {}));
+			el.value = g[prop];
+			return el;
+		}
+		var sel = h('select', { class: 'stm-input', onchange: function (ev) { g.occasion = ev.target.value; } }, occ.map(function (o) {
+			var op = h('option', { value: o, text: o }); op.selected = o === g.occasion; return op;
+		}));
+		var send = field('gsend', 'Trimite-l pe data de', input('sendAt', { type: 'date' }), false, false, 'Gol = imediat ce e gata cardul.');
+		send.classList.add('stm-sendat');
+		send.hidden = !g.remail.trim();
+		return h('form', { class: 'stm-grid', novalidate: true, onsubmit: function (ev) { ev.preventDefault(); self.next(); } }, [
+			field('gto', 'Pentru (numele de pe card)', input('to', { maxlength: 40, placeholder: 'ex. Familia Ionescu' }, 'gto'), false, true),
+			field('gfrom', 'Din partea', input('from', { maxlength: 40, placeholder: 'ex. Andrei și Maria' }, 'gfrom'), false, true),
+			field('gocc', 'Ocazia', sel, true, false),
+			field('gmsg', 'Mesaj pe card (opțional)', input('message', { rows: 2, maxlength: 150, placeholder: 'Un gând scurt, apare pe card' }), true, false),
+			h('p', { class: 'stm-hint stm-count stm-wide-row', text: (150 - g.message.length) + ' caractere rămase' }),
+			field('gremail', 'Emailul celui care primește (opțional)', input('remail', { type: 'email', placeholder: 'nume@exemplu.ro' }, 'gremail'), false, false, 'Dacă îl scrii, îi trimitem noi cardul.'),
+			send,
+			h('input', { type: 'submit', hidden: true })
+		]);
+	};
+	App.prototype.updateNext = function () {
+		var btn = this.el.querySelector('.stm-foot .stm-btn:last-child');
+		if (btn && this.step < 3) btn.disabled = !(this.done(this.step) || (this.step === 1 && this.isGift()) || this.step === 2);
+	};
+
 	App.prototype.renderInfo = function () {
 		var self = this, s = this.sel, e = this.errors;
 		function clear(ev) {
@@ -414,9 +545,9 @@
 		return h('form', { class: 'stm-grid', novalidate: true, onsubmit: function (ev) { ev.preventDefault(); self.next(); } }, [
 			field('first', 'Prenume', 'text', false, true, 'Prenumele tău'),
 			field('last', 'Nume', 'text', false, true, 'Numele de familie'),
-			field('email', 'Email', 'email', false, true, 'nume@exemplu.ro'),
+			field('email', this.isGift() ? 'Email (aici primești cardul)' : 'Email', 'email', false, true, 'nume@exemplu.ro'),
 			field('phone', 'Telefon', 'tel', false, true, '07xx xxx xxx'),
-			field('notes', 'Observații (opțional)', 'textarea', true, false, 'Ex: venim cu un bebeluș de 8 luni și cu câinele'),
+			this.isGift() ? null : field('notes', 'Observații (opțional)', 'textarea', true, false, 'Ex: venim cu un bebeluș de 8 luni și cu câinele'),
 			h('label', { class: 'stm-hp', 'aria-hidden': 'true' }, ['Website', this.hp]),
 			consent,
 			h('input', { type: 'submit', hidden: true })
@@ -424,7 +555,20 @@
 	};
 
 	App.prototype.summaryRows = function () {
-		var t = this.theme, s = this.sel, p = this.pkg();
+		var t = this.theme, s = this.sel, p = this.pkg(), g = this.gift;
+		if (this.isGift()) {
+			return [
+				['Cadou', t.title],
+				['Pachet', p ? p.name + (p.price ? ' · ' + priceLabel(p.price) : '') : ''],
+				['Pentru', g.to.trim()],
+				['Din partea', g.from.trim()],
+				['Ocazia', g.occasion],
+				['Mesaj', g.message.trim()],
+				['Trimis lui', g.remail.trim() ? g.remail.trim() + (g.sendAt ? ', pe ' + this.dayLabel(g.sendAt) : '') : 'doar ție, îl dai tu mai departe'],
+				['Comandat de', s.first.trim() + ' ' + s.last.trim()],
+				['Contact', s.email.trim() + ' · ' + s.phone.trim()]
+			].filter(function (r) { return r[1]; });
+		}
 		return [
 			['Ședința', t.title],
 			['Pachet', p ? p.name + (p.price ? ' · ' + priceLabel(p.price) : '') : ''],
@@ -455,7 +599,7 @@
 			oninput: function (ev) { s.coupon = ev.target.value.toUpperCase(); },
 			onkeydown: function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); self.applyCoupon(); } } });
 		input.value = s.coupon || '';
-		var couponBox = hasPrice ? h('div', { class: 'stm-coupon' }, [
+		var couponBox = hasPrice && !this.isGift() ? h('div', { class: 'stm-coupon' }, [
 			h('label', { class: 'stm-label', text: 'Ai un cod de reducere sau un card cadou?' }),
 			h('div', { class: 'stm-coupon-row' }, [
 				input,
@@ -477,7 +621,9 @@
 			})),
 			couponBox,
 			total,
-			h('p', { class: 'stm-hint', text: 'Verifică datele și apasă „Trimite rezervarea”. Primești un email cu toate detaliile.' })
+			h('p', { class: 'stm-hint', text: !this.isGift()
+				? 'Verifică datele și apasă „Trimite rezervarea”. Primești un email cu toate detaliile.'
+				: (this.cfg.giftInstant ? 'Verifică datele și apasă „Comandă cardul cadou”. Cardul ajunge pe email în câteva minute, împreună cu detaliile de plată.' : 'Verifică datele și apasă „Comandă cardul cadou”. Primești pe email detaliile de plată; cardul pleacă imediat ce confirmăm plata.') })
 		]);
 	};
 
@@ -504,6 +650,22 @@
 				return h('div', { class: 'stm-summary-row' }, [h('span', { text: row[0] }), h('strong', { text: row[1] })]);
 			})),
 			h('div', { class: 'stm-success-actions' }, actions)
+		]);
+	};
+
+	App.prototype.renderGiftSuccess = function () {
+		var r = this.result || {};
+		return h('div', { class: 'stm-success' }, [
+			h('div', { class: 'stm-success-icon' }),
+			h('h3', { text: r.issued ? 'Cardul cadou este gata!' : 'Comanda cardului cadou a fost trimisă!' }),
+			h('p', { text: r.message || '' }),
+			h('div', { class: 'stm-summary' }, [
+				h('div', { class: 'stm-summary-row' }, [h('span', { text: 'Codul cardului' }), h('strong', { text: r.code || '' })]),
+				h('div', { class: 'stm-summary-row' }, [h('span', { text: 'Valoare' }), h('strong', { text: r.value || '' })]),
+				h('div', { class: 'stm-summary-row' }, [h('span', { text: 'Pentru' }), h('strong', { text: this.gift.to })])
+			]),
+			r.payment ? h('div', { class: 'stm-gift-pay' }, [h('strong', { text: 'Cum plătești' }), h('p', { html: r.payment })]) : null,
+			r.preview ? h('div', { class: 'stm-success-actions' }, [h('a', { class: 'stm-btn', href: r.preview, target: '_blank', rel: 'noopener', text: 'Descarcă cardul (PDF)' })]) : null
 		]);
 	};
 

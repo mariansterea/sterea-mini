@@ -12,6 +12,7 @@ class STM_Settings {
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_init', array( __CLASS__, 'register' ) );
+		add_action( 'admin_post_stm_mail_test', array( __CLASS__, 'mail_test' ) );
 		add_action(
 			'admin_enqueue_scripts',
 			function ( $hook ) {
@@ -20,6 +21,21 @@ class STM_Settings {
 				}
 			}
 		);
+	}
+
+	public static function mail_test() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Nu ai voie.' );
+		}
+		check_admin_referer( 'stm_mail_test' );
+		$to = array_filter( array_map( 'trim', explode( ',', (string) STM_Helpers::get( 'notify_email' ) ) ), 'is_email' );
+		$ok = 0;
+		foreach ( $to as $addr ) {
+			$ok += STM_Helpers::mail( $addr, 'Test email: Sterea Mini-Ședințe', '<p>Acesta este un email de test trimis din Mini-ședințe → Setări, ' . esc_html( STM_Helpers::now()->format( 'Y-m-d H:i' ) ) . '.</p><p>Dacă îl vezi în Inbox, emailurile către clienți ajung. Dacă l-ai găsit în Spam, marchează-l „Nu este spam” și activează DKIM pentru domeniu.</p>' ) ? 1 : 0;
+		}
+		set_transient( 'stm_notice_' . get_current_user_id(), $to ? sprintf( 'Email de test: %d din %d predate serverului (%s). Verifică Inbox și Spam.', $ok, count( $to ), implode( ', ', $to ) ) : 'Nu există nicio adresă la „Notificări rezervări noi”.', 60 );
+		wp_safe_redirect( admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_THEME . '&page=stm-settings' ) );
+		exit;
 	}
 
 	public static function menu() {
@@ -61,6 +77,9 @@ class STM_Settings {
 			'gift_terms'    => sanitize_text_field( isset( $in['gift_terms'] ) ? $in['gift_terms'] : '' ),
 			'gift_success_text' => sanitize_text_field( isset( $in['gift_success_text'] ) ? $in['gift_success_text'] : '' ),
 			'gift_book_url' => esc_url_raw( trim( isset( $in['gift_book_url'] ) ? (string) $in['gift_book_url'] : '' ) ),
+			'gift_send'     => isset( $in['gift_send'] ) && 'instant' === $in['gift_send'] ? 'instant' : 'paid',
+			'mail_from_name' => sanitize_text_field( isset( $in['mail_from_name'] ) ? $in['mail_from_name'] : '' ),
+			'mail_from'     => sanitize_email( isset( $in['mail_from'] ) ? $in['mail_from'] : '' ),
 		);
 		// Cheia JSON a contului de serviciu: se păstrează cea veche dacă nu s-a lipit alta.
 		$json_in = trim( (string) ( isset( $in['gcal_json'] ) ? $in['gcal_json'] : '' ) );
@@ -179,6 +198,42 @@ class STM_Settings {
 					</tr>
 				</table>
 
+				<h2>Emailuri</h2>
+				<p class="description">Toate emailurile pluginului (rezervări, reamintiri, carduri cadou) pleacă de pe serverul site-ului. Ca să ajungă în Inbox, nu în Spam, domeniul trebuie să aibă DKIM activ (cPanel → Email Deliverability → Repair) sau trebuie folosit un modul SMTP.</p>
+				<table class="form-table">
+					<tr>
+						<th><label for="stm-from-name">Numele expeditorului</label></th>
+						<td><input type="text" id="stm-from-name" class="regular-text" name="<?php echo esc_attr( self::name( 'mail_from_name' ) ); ?>" value="<?php echo esc_attr( $s['mail_from_name'] ); ?>" placeholder="Marian Sterea"></td>
+					</tr>
+					<tr>
+						<th><label for="stm-from">Adresa expeditorului</label></th>
+						<td><input type="email" id="stm-from" class="regular-text" name="<?php echo esc_attr( self::name( 'mail_from' ) ); ?>" value="<?php echo esc_attr( $s['mail_from'] ); ?>" placeholder="<?php echo esc_attr( 'wordpress@' . wp_parse_url( home_url(), PHP_URL_HOST ) ); ?>">
+						<p class="description">O adresă de pe domeniul site-ului, care există în cPanel (ex. rezervari@mariansterea.ro). Nu pune o adresă de Gmail: emailurile ar fi respinse. Gol = adresa implicită a WordPress.</p></td>
+					</tr>
+					<tr>
+						<th>Test</th>
+						<td><a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=stm_mail_test' ), 'stm_mail_test' ) ); ?>">Trimite un email de test</a>
+						<p class="description">Pleacă la adresele de la „Notificări rezervări noi”. Salvează setările înainte.</p></td>
+					</tr>
+				</table>
+				<?php $stm_log = STM_Helpers::mail_log(); ?>
+				<?php if ( $stm_log ) : ?>
+					<table class="widefat striped" style="max-width:900px;margin-bottom:24px">
+						<thead><tr><th>Când</th><th>Către</th><th>Subiect</th><th>Rezultat</th></tr></thead>
+						<tbody>
+						<?php foreach ( array_slice( $stm_log, 0, 12 ) as $row ) : ?>
+							<tr>
+								<td><?php echo esc_html( $row['time'] ); ?></td>
+								<td><?php echo esc_html( $row['to'] ); ?></td>
+								<td><?php echo esc_html( $row['subject'] ); ?></td>
+								<td><?php echo $row['ok'] ? '<span class="stm-badge stm-badge--confirmed">predat serverului</span>' : '<span class="stm-badge stm-badge--cancelled">eșuat</span> ' . esc_html( $row['error'] ); ?></td>
+							</tr>
+						<?php endforeach; ?>
+						</tbody>
+					</table>
+					<p class="description" style="max-width:900px">„Predat serverului” înseamnă că WordPress a trimis emailul; dacă tot nu ajunge, e oprit la livrare (Spam sau respins de Gmail), iar soluția e DKIM sau SMTP.</p>
+				<?php endif; ?>
+
 				<h2>Formularul de pe site</h2>
 				<table class="form-table">
 					<tr>
@@ -216,12 +271,19 @@ class STM_Settings {
 				<p><button type="button" class="button stm-add" data-stm-target="days_off">+ Adaugă zi liberă</button></p>
 
 				<h2>Carduri cadou</h2>
-				<p class="description">Oricine poate comanda online un card cadou (o ședință dintr-un eveniment sau o sumă). Plata se face prin transfer / WhatsApp; după „Marchează plătit”, cardul (JPG + PDF) pleacă automat pe email. Destinatarul scrie codul la pasul „Confirmare” din formularul de rezervare. Pune <code>[sterea_mini_card_cadou]</code> într-o pagină.</p>
+				<p class="description">În formularul de rezervare apare, la primul pas, alegerea „Rezerv pentru noi” / „Oferă cadou o ședință foto…”. Cine alege cadoul completează numele de pe card, mesajul și datele lui, iar cardul (JPG + PDF, cu cod unic) pleacă pe email. Destinatarul scrie codul la pasul „Confirmare” când rezervă. Pentru o pagină care pornește direct pe cadou: <code>[sterea_mini cadou="1"]</code> (sau <code>[sterea_mini_card_cadou]</code>).</p>
 				<table class="form-table">
 					<tr>
 						<th>Carduri cadou</th>
-						<td><label><input type="hidden" name="<?php echo esc_attr( self::name( 'gift_enabled' ) ); ?>" value="0"><input type="checkbox" name="<?php echo esc_attr( self::name( 'gift_enabled' ) ); ?>" value="1" <?php checked( $s['gift_enabled'] ); ?>> Formularul de comandă este activ</label>
+						<td><label><input type="hidden" name="<?php echo esc_attr( self::name( 'gift_enabled' ) ); ?>" value="0"><input type="checkbox" name="<?php echo esc_attr( self::name( 'gift_enabled' ) ); ?>" value="1" <?php checked( $s['gift_enabled'] ); ?>> Arată opțiunea „Oferă cadou” în formularul de rezervare</label>
 						<?php if ( ! STM_Giftcard_Image::available() ) : ?><p class="description" style="color:#b32d2e">Serverul nu are extensia PHP GD cu suport TrueType; cardurile nu pot fi generate.</p><?php endif; ?></td>
+					</tr>
+					<tr>
+						<th>Când pleacă cardul</th>
+						<td>
+							<label><input type="radio" name="<?php echo esc_attr( self::name( 'gift_send' ) ); ?>" value="paid" <?php checked( $s['gift_send'], 'paid' ); ?>> după ce confirm plata (butonul „Marchează plătit și trimite”)</label><br>
+							<label><input type="radio" name="<?php echo esc_attr( self::name( 'gift_send' ) ); ?>" value="instant" <?php checked( $s['gift_send'], 'instant' ); ?>> imediat după comandă, împreună cu detaliile de plată (plata o verifici apoi și apeși „Am primit plata”)</label>
+						</td>
 					</tr>
 					<tr>
 						<th><label for="stm-gift-pay">Instrucțiuni de plată</label></th>

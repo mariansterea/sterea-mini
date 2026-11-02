@@ -112,6 +112,8 @@ class STM_Giftcards {
 			'booking'         => 0,
 			'note'            => '',
 			'file'            => '',
+			'auto'            => 0,
+			'paid_at'         => '',
 		);
 	}
 
@@ -283,20 +285,38 @@ class STM_Giftcards {
 	 */
 	public static function mark_paid( $id ) {
 		$m = self::meta( $id );
+		if ( 'paid' === $m['status'] && ! empty( $m['auto'] ) && empty( $m['paid_at'] ) ) {
+			// Card emis automat la comandă: doar se notează plata, fără să-l retrimitem.
+			$m['paid_at'] = STM_Helpers::now()->format( 'Y-m-d H:i' );
+			update_post_meta( $id, self::META, $m );
+			return true;
+		}
 		if ( ! in_array( $m['status'], array( 'pending', 'cancelled' ), true ) ) {
 			return false;
 		}
+		self::issue( $id, false );
+		return true;
+	}
+
+	/**
+	 * Emite cardul (status activ, dată, valabilitate, fișiere) și îl trimite pe email.
+	 *
+	 * @param bool $auto true = emis automat la comandă, înainte de confirmarea plății.
+	 */
+	public static function issue( $id, $auto ) {
+		$m              = self::meta( $id );
 		$m['status']    = 'paid';
 		$m['issued']    = STM_Helpers::now()->format( 'Y-m-d' );
-		$m['expires']   = self::expiry_for( $m );
+		$m['expires']   = $m['expires'] ? $m['expires'] : self::expiry_for( $m );
 		$m['remaining'] = $m['value'];
+		$m['auto']      = $auto ? 1 : 0;
+		$m['paid_at']   = $auto ? '' : STM_Helpers::now()->format( 'Y-m-d H:i' );
 		update_post_meta( $id, self::META, $m );
 		self::build_files( $id );
 		self::send_card( $id, 'buyer' );
 		if ( $m['recipient_email'] && ! $m['send_at'] ) {
 			self::send_card( $id, 'recipient' );
 		}
-		return true;
 	}
 
 	public static function set_status( $id, $status ) {
@@ -548,14 +568,16 @@ class STM_Giftcards {
 	}
 
 	private static function send( $to, $subject, $html, $attachments = array(), $reply_to = '' ) {
-		if ( ! is_email( $to ) ) {
-			return false;
-		}
-		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
-		if ( $reply_to && is_email( $reply_to ) ) {
-			$headers[] = 'Reply-To: ' . $reply_to;
-		}
-		return wp_mail( $to, $subject, $html, $headers, $attachments );
+		return STM_Helpers::mail( $to, $subject, $html, $reply_to, $attachments );
+	}
+
+	private static function instant() {
+		return 'instant' === STM_Helpers::get( 'gift_send' );
+	}
+
+	private static function payment_block() {
+		$pay = trim( (string) STM_Helpers::get( 'gift_payment_text' ) );
+		return '<p><strong>Cum plătești:</strong><br>' . nl2br( esc_html( $pay ? $pay : 'Îți trimitem detaliile de plată în cel mai scurt timp.' ) ) . '</p>';
 	}
 
 	private static function wrap( $title, $body ) {
@@ -591,17 +613,28 @@ class STM_Giftcards {
 	 * La crearea cardului: cumpărătorul primește instrucțiunile de plată, voi primiți notificarea.
 	 */
 	public static function on_created_emails( $id ) {
-		$m   = self::meta( $id );
-		$pay = trim( (string) STM_Helpers::get( 'gift_payment_text' ) );
+		$admins = self::admin_emails();
+		if ( self::instant() ) {
+			self::issue( $id, true );
+			$m      = self::meta( $id );
+			$admin  = '<p>Card cadou nou, emis și trimis automat. <strong>Verifică plata</strong> și scrie în nota cardului când a intrat.</p>' . self::summary( $id );
+			$admin .= '<p><strong>' . esc_html( $m['buyer_name'] ) . '</strong><br>Telefon: ' . esc_html( $m['buyer_phone'] ) . '<br>Email: ' . esc_html( $m['buyer_email'] )
+				. ( $m['recipient_email'] ? '<br>Email destinatar: ' . esc_html( $m['recipient_email'] ) . ( $m['send_at'] ? ' (de trimis pe ' . esc_html( $m['send_at'] ) . ')' : '' ) : '' ) . '</p>';
+			$admin .= '<p><a href="' . esc_url( admin_url( 'post.php?post=' . $id . '&action=edit' ) ) . '">Vezi cardul</a></p>';
+			foreach ( $admins as $to ) {
+				self::send( $to, 'Card cadou nou: ' . STM_Helpers::money( $m['value'] ) . ' – ' . $m['buyer_name'], self::wrap( 'Card cadou nou', $admin ), array(), $m['buyer_email'] );
+			}
+			return;
+		}
+		$m     = self::meta( $id );
 		$phone = trim( (string) STM_Helpers::get( 'contact_phone' ) );
 		$body  = '<p>Bună, ' . esc_html( $m['buyer_name'] ) . '! Am primit comanda ta pentru un card cadou:</p>' . self::summary( $id );
-		$body .= '<p><strong>Cum plătești:</strong><br>' . nl2br( esc_html( $pay ? $pay : 'Îți trimitem detaliile de plată în cel mai scurt timp.' ) ) . '</p>';
+		$body .= self::payment_block();
 		$body .= '<p>Scrie la plată codul <strong>' . esc_html( self::code( $id ) ) . '</strong>. Imediat ce confirmăm plata, primești cardul pe email (JPG și PDF, gata de trimis sau de printat)'
 			. ( $m['recipient_email'] ? ', iar ' . esc_html( $m['to'] ) . ' îl primește ' . ( $m['send_at'] ? 'pe ' . esc_html( preg_replace( '/^[^,]+,\s*/', '', STM_Helpers::date_label( $m['send_at'] ) ) ) : 'în același timp' ) : '' ) . '.</p>';
 		if ( $phone ) {
 			$body .= '<p>Întrebări? <a href="tel:' . esc_attr( preg_replace( '/\s+/', '', $phone ) ) . '">' . esc_html( $phone ) . '</a></p>';
 		}
-		$admins = self::admin_emails();
 		self::send( $m['buyer_email'], 'Card cadou ' . self::code( $id ) . ': cum plătești', self::wrap( 'Comanda ta de card cadou', $body ), array(), $admins ? $admins[0] : '' );
 
 		$admin  = '<p>Comandă nouă de card cadou (în așteptarea plății):</p>' . self::summary( $id );
@@ -640,8 +673,9 @@ class STM_Giftcards {
 				. ( $m['message'] ? '<p style="font-style:italic">„' . esc_html( $m['message'] ) . '”</p>' : '' ) . $img . $how . $links;
 			$subject = 'Un cadou pentru tine din partea ' . $m['from'] . ': ședință foto';
 		} else {
-			$body = '<p>Bună, ' . esc_html( $m['buyer_name'] ) . '! Plata a fost confirmată, cardul cadou este gata. Îl poți trimite mai departe (imaginea sau PDF-ul) sau îl poți printa.</p>'
-				. $img . self::summary( $id ) . $how . $links;
+			$auto = ! empty( $m['auto'] ) && empty( $m['paid_at'] );
+			$body = '<p>Bună, ' . esc_html( $m['buyer_name'] ) . '! ' . ( $auto ? 'Mulțumim pentru comandă, cardul cadou este gata.' : 'Plata a fost confirmată, cardul cadou este gata.' ) . ' Îl poți trimite mai departe (imaginea sau PDF-ul) sau îl poți printa.</p>'
+				. $img . self::summary( $id ) . ( $auto ? self::payment_block() : '' ) . $how . $links;
 			$subject = 'Cardul tău cadou ' . $code . ' este gata';
 		}
 		$admins = self::admin_emails();
@@ -743,43 +777,38 @@ class STM_Giftcards {
 			return $id;
 		}
 		self::on_created_emails( $id );
-		$m = self::meta( $id );
+		$m      = self::meta( $id );
+		$issued = 'pending' !== $m['status'];
 		return rest_ensure_response(
 			array(
 				'ok'      => true,
+				'issued'  => $issued,
 				'code'    => self::code( $id ),
 				'value'   => STM_Helpers::money( $m['value'] ),
-				'message' => (string) STM_Helpers::get( 'gift_success_text' ),
+				'message' => $issued
+					? 'Am trimis cardul pe ' . $m['buyer_email'] . ', împreună cu detaliile de plată. Dacă nu-l vezi în câteva minute, uită-te și în Spam.'
+					: (string) STM_Helpers::get( 'gift_success_text' ),
 				'payment' => wp_kses_post( nl2br( esc_html( (string) STM_Helpers::get( 'gift_payment_text' ) ) ) ),
+				'preview' => $issued ? self::download_url( $id, 'pdf' ) : '',
 			)
 		);
 	}
 
 	/* ---------- Shortcode ---------- */
 
+	/**
+	 * [sterea_mini_card_cadou id="…"] = formularul de rezervare, pornit direct pe „Oferă cadou”.
+	 */
 	public static function shortcode( $atts ) {
 		if ( ! STM_Helpers::get( 'gift_enabled' ) && ! STM_Helpers::is_remote() ) {
 			return '';
 		}
-		wp_enqueue_style( 'stm-front' );
-		$accent = sanitize_hex_color( (string) STM_Helpers::get( 'accent' ) );
-		if ( $accent ) {
-			wp_add_inline_style( 'stm-front', '.stm-app{--stm-accent:' . $accent . '}' );
-		}
-		wp_enqueue_script( 'stm-gift' );
-
-		$api    = add_query_arg( 'rest_route', '/' . STM_Rest::NS, home_url( '/' ) );
-		$config = array(
-			'min'       => (float) STM_Helpers::get( 'gift_min' ),
-			'months'    => (int) STM_Helpers::get( 'gift_months' ),
-			'occasions' => self::occasions(),
-			'gdpr'      => wp_kses_post( (string) STM_Helpers::get( 'gdpr_text' ) ),
-			'phone'     => (string) STM_Helpers::get( 'contact_phone' ),
-		);
-		return sprintf(
-			'<div class="stm-app stm-gift" data-api="%s" data-config="%s" aria-live="polite"><p class="stm-loading"><span class="stm-spinner"></span>Se încarcă…</p><noscript>Pentru comandă este nevoie de JavaScript activat în browser.</noscript></div>',
-			esc_url( $api ),
-			esc_attr( wp_json_encode( $config ) )
+		$atts = shortcode_atts( array( 'id' => 0 ), $atts, 'sterea_mini_card_cadou' );
+		return STM_Frontend::shortcode(
+			array(
+				'id'    => absint( $atts['id'] ),
+				'cadou' => 1,
+			)
 		);
 	}
 
@@ -1051,6 +1080,8 @@ class STM_Giftcards {
 				echo '<span class="stm-badge stm-badge--' . esc_attr( $cls[ $m['status'] ] ) . '">' . esc_html( self::STATUSES[ $m['status'] ] ) . '</span>';
 				if ( in_array( $m['status'], array( 'pending', 'cancelled' ), true ) ) {
 					echo '<br><a href="' . esc_url( self::action_url( 'paid', $post_id ) ) . '">Marchează plătit</a>';
+				} elseif ( ! empty( $m['auto'] ) && empty( $m['paid_at'] ) && 'paid' === $m['status'] ) {
+					echo '<br><span class="stm-muted">plata neconfirmată</span> · <a href="' . esc_url( self::action_url( 'paid', $post_id ) ) . '">Am primit plata</a>';
 				}
 				if ( $m['booking'] ) {
 					echo '<br><a href="' . esc_url( admin_url( 'post.php?post=' . (int) $m['booking'] . '&action=edit' ) ) . '">rezervarea #' . (int) $m['booking'] . '</a>';

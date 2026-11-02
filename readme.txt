@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.8.0
+Stable tag: 1.8.1
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -45,14 +45,19 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 
 == Carduri cadou ==
 
-1. Mini-ședințe → Setări → Carduri cadou: bifează „Formularul de comandă este activ”, scrie instrucțiunile de plată (IBAN, WhatsApp), suma minimă, valabilitatea și pagina de rezervare.
-2. Pune [sterea_mini_card_cadou] într-o pagină (ex. /card-cadou/).
-3. Comenzile apar în Mini-ședințe → Carduri cadou, „În așteptarea plății”. Când intră banii: „Marchează plătit și trimite”. Cardul se generează din șablonul din assets/img (Crăciun = verde, restul = negru) și pleacă pe email cu PDF atașat.
+1. Mini-ședințe → Setări → Carduri cadou: bifează „Arată opțiunea «Oferă cadou» în formularul de rezervare”, alege când pleacă cardul (după confirmarea plății sau imediat), scrie instrucțiunile de plată și pagina de rezervare.
+2. În formularul de rezervare apare, la primul pas, alegerea „Rezerv pentru noi” / „Oferă cadou o ședință foto de Crăciun”. Pentru o pagină dedicată: [sterea_mini cadou="1"] sau [sterea_mini_card_cadou].
+3. Comenzile apar în Mini-ședințe → Carduri cadou. Varianta „după plată”: „Marchează plătit și trimite”. Varianta „imediat”: cardul pleacă la comandă, tu apeși „Am primit plata” când intră banii. Cardul se generează din șablonul din assets/img (Crăciun = verde, restul = negru) și pleacă pe email cu PDF atașat.
 4. Destinatarul rezervă normal și scrie codul (ex. MS-2611-K7PQ) la pasul „Confirmare”; valoarea se scade. Cardul devine „Folosit”; dacă rezervarea se anulează, redevine valabil.
 5. Carduri vândute direct (cash, la studio): „Adaugă card cadou”, completezi, pui status „Plătit, valabil”, salvezi, apoi „Regenerează fișierele” și „Retrimite”.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.8.1 (2026-11-02) =
+* Cardul cadou este acum în formularul de rezervare: la pasul 1, „Rezerv pentru noi” / „Oferă cadou o ședință foto de Crăciun”; pașii devin Pachet → Cardul cadou (pentru, din partea, ocazie, mesaj, email destinatar, dată) → Datele tale → Confirmare. [sterea_mini cadou="1"] pornește direct pe cadou. Formularul separat a fost scos.
+* Setare nouă: cardul pleacă după confirmarea plății sau imediat după comandă (cu detaliile de plată în același email; „Am primit plata” în listă).
+* Emailuri: numele și adresa expeditorului se setează din Setări (nu mai apare „WordPress”), buton „Trimite un email de test” și jurnalul ultimelor 30 de emailuri (trimis / eșuat, cu eroarea).
 
 = 1.8.0 (2026-11-02) =
 * Carduri cadou: formular public [sterea_mini_card_cadou] (ședință dintr-un eveniment sau sumă liberă; pentru cine, din partea cui, ocazie, mesaj; email destinatar și dată de trimitere opționale), cod unic MS-LLAA-XXXX, instrucțiuni de plată pe email, aprobare din admin („Marchează plătit și trimite”), card generat pe server (JPG 8,5×3,5 inch la 300 dpi + PDF, cod de bare Code 128) din șablonul grafic, email către cumpărător și destinatar (imediat sau programat, prin cron), listă în admin cu statusuri (în așteptare, plătit, folosit, expirat, anulat), filtre, retrimitere și regenerare.

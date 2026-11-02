@@ -13,6 +13,7 @@ delete_option( 'stm_settings' );
 delete_option( 'stm_db_version' );
 delete_option( 'stm_version' );
 delete_option( 'stm_gcal_status' );
+delete_option( 'stm_mail_log' );
 delete_transient( 'stm_gcal_token' );
 delete_site_transient( 'stm_github_release' );
 wp_clear_scheduled_hook( 'stm_send_reminders' );
