@@ -146,6 +146,11 @@ class STM_Coupons {
 		$fail  = function ( $msg ) {
 			return array( 'ok' => false, 'message' => $msg );
 		};
+		// Un card cadou se folosește prin același câmp de cod.
+		$gift = STM_Giftcards::validate( $code, $theme_id, $package_name, $price );
+		if ( null !== $gift ) {
+			return $gift;
+		}
 		$id = self::find( $code );
 		if ( ! $id ) {
 			return $fail( 'Codul nu există.' );

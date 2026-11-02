@@ -16,8 +16,9 @@ delete_option( 'stm_gcal_status' );
 delete_transient( 'stm_gcal_token' );
 delete_site_transient( 'stm_github_release' );
 wp_clear_scheduled_hook( 'stm_send_reminders' );
+wp_clear_scheduled_hook( 'stm_gift_deliveries' );
 
-foreach ( array( 'stm_theme', 'stm_booking', 'stm_coupon' ) as $stm_type ) {
+foreach ( array( 'stm_theme', 'stm_booking', 'stm_coupon', 'stm_giftcard' ) as $stm_type ) {
 	$stm_ids = get_posts(
 		array(
 			'post_type'   => $stm_type,

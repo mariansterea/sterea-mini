@@ -54,6 +54,13 @@ class STM_Settings {
 			'gcal_enabled'  => empty( $in['gcal_enabled'] ) ? 0 : 1,
 			'gcal_calendar_id' => sanitize_text_field( isset( $in['gcal_calendar_id'] ) ? $in['gcal_calendar_id'] : '' ),
 			'gcal_json'     => '',
+			'gift_enabled'  => empty( $in['gift_enabled'] ) ? 0 : 1,
+			'gift_min'      => max( 1, (float) ( isset( $in['gift_min'] ) ? $in['gift_min'] : 300 ) ),
+			'gift_months'   => max( 1, min( 36, absint( isset( $in['gift_months'] ) ? $in['gift_months'] : 12 ) ) ),
+			'gift_payment_text' => sanitize_textarea_field( isset( $in['gift_payment_text'] ) ? $in['gift_payment_text'] : '' ),
+			'gift_terms'    => sanitize_text_field( isset( $in['gift_terms'] ) ? $in['gift_terms'] : '' ),
+			'gift_success_text' => sanitize_text_field( isset( $in['gift_success_text'] ) ? $in['gift_success_text'] : '' ),
+			'gift_book_url' => esc_url_raw( trim( isset( $in['gift_book_url'] ) ? (string) $in['gift_book_url'] : '' ) ),
 		);
 		// Cheia JSON a contului de serviciu: se păstrează cea veche dacă nu s-a lipit alta.
 		$json_in = trim( (string) ( isset( $in['gcal_json'] ) ? $in['gcal_json'] : '' ) );
@@ -207,6 +214,40 @@ class STM_Settings {
 					</tbody>
 				</table>
 				<p><button type="button" class="button stm-add" data-stm-target="days_off">+ Adaugă zi liberă</button></p>
+
+				<h2>Carduri cadou</h2>
+				<p class="description">Oricine poate comanda online un card cadou (o ședință dintr-un eveniment sau o sumă). Plata se face prin transfer / WhatsApp; după „Marchează plătit”, cardul (JPG + PDF) pleacă automat pe email. Destinatarul scrie codul la pasul „Confirmare” din formularul de rezervare. Pune <code>[sterea_mini_card_cadou]</code> într-o pagină.</p>
+				<table class="form-table">
+					<tr>
+						<th>Carduri cadou</th>
+						<td><label><input type="hidden" name="<?php echo esc_attr( self::name( 'gift_enabled' ) ); ?>" value="0"><input type="checkbox" name="<?php echo esc_attr( self::name( 'gift_enabled' ) ); ?>" value="1" <?php checked( $s['gift_enabled'] ); ?>> Formularul de comandă este activ</label>
+						<?php if ( ! STM_Giftcard_Image::available() ) : ?><p class="description" style="color:#b32d2e">Serverul nu are extensia PHP GD cu suport TrueType; cardurile nu pot fi generate.</p><?php endif; ?></td>
+					</tr>
+					<tr>
+						<th><label for="stm-gift-pay">Instrucțiuni de plată</label></th>
+						<td><textarea id="stm-gift-pay" rows="4" class="large-text" name="<?php echo esc_attr( self::name( 'gift_payment_text' ) ); ?>" placeholder="Transfer bancar: IBAN RO.., titular .., sau pe WhatsApp la 07.."><?php echo esc_textarea( $s['gift_payment_text'] ); ?></textarea>
+						<p class="description">Apar pe pagină după comandă și în emailul către cumpărător.</p></td>
+					</tr>
+					<tr>
+						<th><label for="stm-gift-min">Sumă minimă (lei)</label></th>
+						<td><input type="number" id="stm-gift-min" min="1" step="1" class="small-text" name="<?php echo esc_attr( self::name( 'gift_min' ) ); ?>" value="<?php echo esc_attr( $s['gift_min'] ); ?>">
+						&nbsp; <label for="stm-gift-months">valabilitate</label> <input type="number" id="stm-gift-months" min="1" max="36" class="small-text" name="<?php echo esc_attr( self::name( 'gift_months' ) ); ?>" value="<?php echo (int) $s['gift_months']; ?>"> luni
+						<p class="description">Pentru cardurile pe o sumă. Cardurile pe un eveniment cu date fixe expiră cel târziu în ultima zi a evenimentului.</p></td>
+					</tr>
+					<tr>
+						<th><label for="stm-gift-terms">Text pe card (jos)</label></th>
+						<td><input type="text" id="stm-gift-terms" class="large-text" name="<?php echo esc_attr( self::name( 'gift_terms' ) ); ?>" value="<?php echo esc_attr( $s['gift_terms'] ); ?>"></td>
+					</tr>
+					<tr>
+						<th><label for="stm-gift-url">Pagina de rezervare</label></th>
+						<td><input type="url" id="stm-gift-url" class="regular-text" name="<?php echo esc_attr( self::name( 'gift_book_url' ) ); ?>" value="<?php echo esc_attr( $s['gift_book_url'] ); ?>" placeholder="https://blog.mariansterea.ro/oferte-sedinte-foto/">
+						<p class="description">Linkul din emailul către destinatar (unde folosește codul).</p></td>
+					</tr>
+					<tr>
+						<th><label for="stm-gift-success">Mesaj după comandă</label></th>
+						<td><input type="text" id="stm-gift-success" class="large-text" name="<?php echo esc_attr( self::name( 'gift_success_text' ) ); ?>" value="<?php echo esc_attr( $s['gift_success_text'] ); ?>"></td>
+					</tr>
+				</table>
 
 				<h2>Google Calendar</h2>
 				<p class="description">Fiecare rezervare apare automat într-un calendar Google (cu numele, telefonul, emailul și pachetul clientului), se actualizează la mutare sau confirmare și dispare la anulare. Are nevoie de un cont de serviciu Google; pașii de configurare sunt în readme.</p>

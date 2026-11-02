@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.7.1
+Stable tag: 1.8.0
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -13,6 +13,7 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 * Pachete la alegere, cu preț și descriere (ex. ședință 30 min / ședință + album).
 * Calendar vizual de disponibilitate: click pe zile, „Adaugă interval de zile” (de la–până la, zile din săptămână, ore), ore blocate manual, zile libere globale.
 * Cupoane de reducere: procent sau sumă fixă, pe evenimente/pachete, limită totală și per client, perioadă, doar pentru anumiți clienți (după email).
+* Carduri cadou: oricine comandă online (o ședință dintr-un eveniment sau o sumă), primește instrucțiunile de plată, iar după „Marchează plătit” cardul personalizat (JPG + PDF, cu cod unic și cod de bare) pleacă automat pe email, către cumpărător și, opțional, către destinatar, la data aleasă. Codul se folosește la rezervare, în câmpul de cod; rezervarea anulată eliberează cardul.
 * Google Calendar: fiecare rezervare apare automat în calendarul ales (nume, telefon, email, pachet, observații), verde = confirmată, galben = în așteptare; se mută odată cu rezervarea și dispare la anulare.
 * Dashboard: rezervări confirmate / în așteptare, ore libere, grad de ocupare, încasări estimate, ocuparea pe zile, următoarele rezervări.
 * Formular pe site: pachet → zi → oră → date client. Fără plată online.
@@ -42,7 +43,23 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 7. Tot acolo, jos, la „Integrează calendarul”, copiază „ID calendar”.
 8. WordPress → Mini-ședințe → Setări → Google Calendar: bifează sincronizarea, lipește ID-ul calendarului și conținutul fișierului .json → Salvează → „Testează conexiunea” → „Pune în calendar rezervările viitoare”.
 
+== Carduri cadou ==
+
+1. Mini-ședințe → Setări → Carduri cadou: bifează „Formularul de comandă este activ”, scrie instrucțiunile de plată (IBAN, WhatsApp), suma minimă, valabilitatea și pagina de rezervare.
+2. Pune [sterea_mini_card_cadou] într-o pagină (ex. /card-cadou/).
+3. Comenzile apar în Mini-ședințe → Carduri cadou, „În așteptarea plății”. Când intră banii: „Marchează plătit și trimite”. Cardul se generează din șablonul din assets/img (Crăciun = verde, restul = negru) și pleacă pe email cu PDF atașat.
+4. Destinatarul rezervă normal și scrie codul (ex. MS-2611-K7PQ) la pasul „Confirmare”; valoarea se scade. Cardul devine „Folosit”; dacă rezervarea se anulează, redevine valabil.
+5. Carduri vândute direct (cash, la studio): „Adaugă card cadou”, completezi, pui status „Plătit, valabil”, salvezi, apoi „Regenerează fișierele” și „Retrimite”.
+Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
+
 == Istoric versiuni ==
+
+= 1.8.0 (2026-11-02) =
+* Carduri cadou: formular public [sterea_mini_card_cadou] (ședință dintr-un eveniment sau sumă liberă; pentru cine, din partea cui, ocazie, mesaj; email destinatar și dată de trimitere opționale), cod unic MS-LLAA-XXXX, instrucțiuni de plată pe email, aprobare din admin („Marchează plătit și trimite”), card generat pe server (JPG 8,5×3,5 inch la 300 dpi + PDF, cod de bare Code 128) din șablonul grafic, email către cumpărător și destinatar (imediat sau programat, prin cron), listă în admin cu statusuri (în așteptare, plătit, folosit, expirat, anulat), filtre, retrimitere și regenerare.
+* Folosire la rezervare: codul cardului merge în același câmp ca un cupon („Ai un cod de reducere sau un card cadou?”); valoarea rămasă se scade, cardul devine „Folosit”, iar anularea rezervării îl face din nou valabil. Un card pe un eveniment cu date fixe expiră cel târziu în ultima zi a evenimentului.
+* Setări → Carduri cadou: activare, instrucțiuni de plată, sumă minimă, valabilitate (luni), textul de pe card, pagina de rezervare, mesajul de după comandă.
+* Fișierele cardurilor stau în uploads/stm-giftcards (blocat la acces direct) și se descarcă doar prin link cu token.
+
 
 = 1.7.1 (2026-10-27) =
 * Reparat: filtrele din Dashboard și Programul zilei dădeau „Cannot load stm-dashboard” când pagina era deschisă din meniul lateral (formularele trimit acum la adresa corectă).

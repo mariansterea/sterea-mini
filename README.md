@@ -4,6 +4,7 @@ Plugin WordPress pentru rezervări la mini-ședințe foto, pe evenimente cu date
 
 - Evenimente cu zile, interval orar, durată și pauză între ședințe; sloturi generate automat
 - Pachete cu preț; formular de rezervare pe site (pachet, zi, oră, date client)
+- Cupoane de reducere și carduri cadou (comandă online, card JPG + PDF pe email, cod folosit la rezervare)
 - Emailuri de confirmare, reamintire și notificare; anulare de către client
 - Programul zilei, export PDF (program complet sau lista rezervărilor) și Excel
 - Update-uri automate din GitHub Releases: noua versiune apare în WordPress > Plugins

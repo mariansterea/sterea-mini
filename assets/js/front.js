@@ -456,7 +456,7 @@
 			onkeydown: function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); self.applyCoupon(); } } });
 		input.value = s.coupon || '';
 		var couponBox = hasPrice ? h('div', { class: 'stm-coupon' }, [
-			h('label', { class: 'stm-label', text: 'Ai un cod de reducere?' }),
+			h('label', { class: 'stm-label', text: 'Ai un cod de reducere sau un card cadou?' }),
 			h('div', { class: 'stm-coupon-row' }, [
 				input,
 				c ? h('button', { type: 'button', class: 'stm-btn stm-btn-ghost', text: 'Renunță', onclick: function () { self.coupon = null; s.coupon = ''; self.couponMsg = ''; self.render(); } })

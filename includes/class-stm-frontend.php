@@ -18,6 +18,7 @@ class STM_Frontend {
 	public static function register() {
 		wp_register_style( 'stm-front', STM_URL . 'assets/css/front.css', array(), STM_VERSION );
 		wp_register_script( 'stm-front', STM_URL . 'assets/js/front.js', array(), STM_VERSION, true );
+		wp_register_script( 'stm-gift', STM_URL . 'assets/js/gift.js', array(), STM_VERSION, true );
 	}
 
 	/**
@@ -25,7 +26,7 @@ class STM_Frontend {
 	 * „Se încarcă programul…” până când vizitatorul dă scroll sau atinge ecranul.
 	 */
 	public static function script_tag( $tag, $handle ) {
-		if ( 'stm-front' === $handle ) {
+		if ( 'stm-front' === $handle || 'stm-gift' === $handle ) {
 			$tag = str_replace( '<script ', '<script data-no-optimize="1" data-no-defer="1" data-no-minify="1" data-cfasync="false" ', $tag );
 		}
 		return $tag;

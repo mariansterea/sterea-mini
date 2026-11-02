@@ -34,6 +34,13 @@ class STM_Helpers {
 			'gcal_enabled'  => 0,
 			'gcal_calendar_id' => '',
 			'gcal_json'     => '',
+			'gift_enabled'  => 0,
+			'gift_min'      => 300,
+			'gift_months'   => 12,
+			'gift_payment_text' => '',
+			'gift_terms'    => 'Rezervarea se face pe blog.mariansterea.ro, cu codul de pe card',
+			'gift_success_text' => 'Mulțumim! Ai primit pe email detaliile de plată. După confirmarea plății, cardul cadou ajunge pe email, gata de dăruit.',
+			'gift_book_url' => '',
 		);
 	}
 
