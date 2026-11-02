@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.8.4
+Stable tag: 1.8.5
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -55,6 +55,9 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.8.5 (2026-11-03) =
+* Golirea automată a cache-ului după actualizare rulează după ce s-au încărcat toate modulele (wp_loaded) și nu mai poate opri pagina dacă pluginul de cache dă eroare (la 1.8.4, pe un site cu WP Rocket, prima pagină din admin după actualizare dădea eroare o singură dată).
 
 = 1.8.4 (2026-11-03) =
 * Emailurile către clienți (confirmare, reamintire, comanda cardului cadou, cardul cadou) au acum: butonul Google Maps, informațiile evenimentului (cum să se pregătească, cu cât timp înainte să vină, parcare) și contactul fotografului cu telefon și WhatsApp.

@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Sterea Mini-Ședințe
  * Description:       Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe: calendar de disponibilitate, sloturi, pachete, cupoane, carduri cadou, dashboard, confirmări pe email, sincronizare cu Google Calendar, anulare de către client, reamintiri și programul zilei. Poate afișa și rezerva sloturile de pe alt site (ex. lipovenesc.ro → site-ul fotografului).
- * Version:           1.8.4
+ * Version:           1.8.5
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Daniela & Marian Sterea
@@ -14,7 +14,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'STM_VERSION', '1.8.4' );
+define( 'STM_VERSION', '1.8.5' );
 define( 'STM_FILE', __FILE__ );
 define( 'STM_DIR', plugin_dir_path( __FILE__ ) );
 define( 'STM_URL', plugin_dir_url( __FILE__ ) );
@@ -65,13 +65,8 @@ add_action(
 			update_option( 'stm_version', STM_VERSION, false );
 			// CSS/JS noi: golește cache-ul de pagini și fișierele minificate (WP Rocket, LiteSpeed),
 			// altfel formularul poate rămâne cu stilurile vechi până la golirea manuală.
-			if ( function_exists( 'rocket_clean_minify' ) ) {
-				rocket_clean_minify();
-			}
-			if ( function_exists( 'rocket_clean_domain' ) ) {
-				rocket_clean_domain();
-			}
-			do_action( 'litespeed_purge_all' ); // phpcs:ignore WordPress.NamingConventions.ValidHookName -- hook LiteSpeed Cache.
+			// Abia după ce s-au încărcat toate modulele (wp_loaded): WP Rocket are nevoie de ele.
+			add_action( 'wp_loaded', 'stm_purge_caches', 99 );
 		}
 	}
 );
@@ -83,3 +78,21 @@ add_filter(
 		return $links;
 	}
 );
+
+/**
+ * Golește cache-ul de pagini și fișierele CSS/JS minificate după o versiune nouă a pluginului.
+ * Orice eroare a unui plugin de cache e ignorată: nu trebuie să blocheze site-ul.
+ */
+function stm_purge_caches() {
+	try {
+		if ( function_exists( 'rocket_clean_minify' ) ) {
+			rocket_clean_minify();
+		}
+		if ( function_exists( 'rocket_clean_domain' ) ) {
+			rocket_clean_domain();
+		}
+		do_action( 'litespeed_purge_all' ); // phpcs:ignore WordPress.NamingConventions.ValidHookName -- hook LiteSpeed Cache.
+	} catch ( Throwable $e ) {
+		unset( $e );
+	}
+}
