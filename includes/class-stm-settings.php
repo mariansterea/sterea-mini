@@ -286,7 +286,7 @@ class STM_Settings {
 				<p><button type="button" class="button stm-add" data-stm-target="days_off">+ Adaugă zi liberă</button></p>
 
 				<h2>Carduri cadou</h2>
-				<p class="description">În formularul de rezervare apare, la primul pas, alegerea „Rezerv pentru noi” / „Oferă cadou o ședință foto…”. Cine alege cadoul completează numele de pe card, mesajul și datele lui, iar cardul (JPG + PDF, cu cod unic) pleacă pe email. Destinatarul scrie codul la pasul „Confirmare” când rezervă. Pentru o pagină care pornește direct pe cadou: <code>[sterea_mini cadou="1"]</code> (sau <code>[sterea_mini_card_cadou]</code>).</p>
+				<p class="description">În formularul de rezervare apare, la primul pas, alegerea „Rezerv pentru noi” / „Oferă cadou o ședință foto…”. Cine alege cadoul completează numele de pe card, mesajul și datele lui, iar cardul (JPG + PDF, cu cod unic) pleacă pe email. Destinatarul scrie codul la pasul „Confirmare” când rezervă. Pentru o pagină care pornește direct pe cadou: <code>[sterea_mini cadou="1"]</code> (sau <code>[sterea_mini_card_cadou]</code>). Imaginea-model a cardului, pentru pagini și articole: <code>[sterea_mini_card_model stil="craciun"]</code> sau <code>stil="negru"</code>, opțional cu <code>link="…"</code>.</p>
 				<table class="form-table">
 					<tr>
 						<th>Carduri cadou</th>

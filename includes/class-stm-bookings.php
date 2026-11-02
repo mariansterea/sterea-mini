@@ -579,7 +579,7 @@ class STM_Bookings {
 				}
 				break;
 			case 'stm_theme':
-				echo esc_html( $b['theme'] ? get_the_title( $b['theme'] ) : '—' );
+				echo esc_html( $b['theme'] ? get_the_title( $b['theme'] ) : '–' );
 				break;
 			case 'stm_package':
 				echo esc_html( $b['package'] );

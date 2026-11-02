@@ -37,7 +37,7 @@ class STM_Schedule {
 			foreach ( STM_Helpers::theme_meta( $t->ID )['days'] as $d ) {
 				$options[] = array(
 					'key'   => $t->ID . '|' . $d['date'],
-					'label' => get_the_title( $t ) . ' — ' . STM_Helpers::date_label( $d['date'] ),
+					'label' => get_the_title( $t ) . ' · ' . STM_Helpers::date_label( $d['date'] ),
 					'date'  => $d['date'],
 				);
 			}
@@ -136,7 +136,7 @@ class STM_Schedule {
 				return admin_url( 'post-new.php?post_type=' . STM_Helpers::CPT_BOOKING . '&stm_theme=' . $theme_id . '&stm_date=' . $date . '&stm_time=' . $time );
 			};
 			?>
-			<h2><?php echo esc_html( get_the_title( $theme_id ) ); ?> — <?php echo esc_html( STM_Helpers::date_label( $date ) ); ?></h2>
+			<h2><?php echo esc_html( get_the_title( $theme_id ) ); ?> · <?php echo esc_html( STM_Helpers::date_label( $date ) ); ?></h2>
 			<p><?php echo esc_html( $meta['location'] ); ?> · <?php echo (int) $booked; ?> din <?php echo count( $slots ); ?> sloturi rezervate<?php echo $cancelled ? ' · ' . (int) $cancelled . ' anulate' : ''; ?><?php echo $is_off ? ' · <strong style="color:#8a1f1f">zi liberă (Setări), nu apare în formular</strong>' : ''; ?></p>
 			<table class="widefat striped stm-day-table">
 				<thead>

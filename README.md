@@ -4,7 +4,8 @@ Plugin WordPress pentru rezervări la mini-ședințe foto, pe evenimente cu date
 
 - Evenimente cu zile, interval orar, durată și pauză între ședințe; sloturi generate automat
 - Pachete cu preț; formular de rezervare pe site (pachet, zi, oră, date client)
-- Cupoane de reducere și carduri cadou (comandă online, card JPG + PDF pe email, cod folosit la rezervare)
+- Cupoane de reducere și carduri cadou, comandate direct din formularul de rezervare (card JPG + PDF pe email, cod folosit la rezervare); imaginea-model a cardului cu `[sterea_mini_card_model]`
+- Merge și pe un al doilea site (ex. lipovenesc.ro), care trimite rezervările și comenzile de card cadou la site-ul principal
 - Emailuri de confirmare, reamintire și notificare; anulare de către client
 - Programul zilei, export PDF (program complet sau lista rezervărilor) și Excel
 - Update-uri automate din GitHub Releases: noua versiune apare în WordPress > Plugins

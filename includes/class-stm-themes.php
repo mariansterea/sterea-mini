@@ -288,7 +288,7 @@ class STM_Themes {
 			// Rezumat, nu toate zilele: „32 zile · 10 nov – 13 dec 2026 · 12:00–18:00”.
 			$days = $m['days'];
 			if ( ! $days ) {
-				echo '—';
+				echo '–';
 			} else {
 				$dates = wp_list_pluck( $days, 'date' );
 				sort( $dates );

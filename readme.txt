@@ -13,7 +13,7 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 * Pachete la alegere, cu preț și descriere (ex. ședință 30 min / ședință + album).
 * Calendar vizual de disponibilitate: click pe zile, „Adaugă interval de zile” (de la–până la, zile din săptămână, ore), ore blocate manual, zile libere globale.
 * Cupoane de reducere: procent sau sumă fixă, pe evenimente/pachete, limită totală și per client, perioadă, doar pentru anumiți clienți (după email).
-* Carduri cadou: oricine comandă online (o ședință dintr-un eveniment sau o sumă), primește instrucțiunile de plată, iar după „Marchează plătit” cardul personalizat (JPG + PDF, cu cod unic și cod de bare) pleacă automat pe email, către cumpărător și, opțional, către destinatar, la data aleasă. Codul se folosește la rezervare, în câmpul de cod; rezervarea anulată eliberează cardul.
+* Carduri cadou, direct din formularul de rezervare („Oferă cadou o ședință foto”): cardul personalizat (JPG + PDF, cu cod unic și cod de bare) pleacă pe email după confirmarea plății sau imediat, către cumpărător și, opțional, către destinatar, la data aleasă. Codul se folosește la rezervare, în câmpul de cod; rezervarea anulată eliberează cardul. Imaginea-model a cardului se poate pune în orice pagină cu [sterea_mini_card_model].
 * Google Calendar: fiecare rezervare apare automat în calendarul ales (nume, telefon, email, pachet, observații), verde = confirmată, galben = în așteptare; se mută odată cu rezervarea și dispare la anulare.
 * Dashboard: rezervări confirmate / în așteptare, ore libere, grad de ocupare, încasări estimate, ocuparea pe zile, următoarele rezervări.
 * Formular pe site: pachet → zi → oră → date client. Fără plată online.
@@ -28,7 +28,7 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 == Instalare ==
 
 1. Site principal: Module → Adaugă modul → Încarcă modul → sterea-mini.zip → Activează. Update-urile vin apoi automat din GitHub.
-2. Mini-ședințe → Setări: emailuri de notificare, telefon, informații utile.
+2. Mini-ședințe → Setări: emailuri de notificare, telefon, informații utile. La „Emailuri”, completează „Adresa expeditorului” cu o căsuță reală de pe domeniu (ex. marianst@mariansterea.ro) și apasă „Trimite un email de test”.
 3. Mini-ședințe → Adaugă eveniment. Puneți [sterea_mini] într-o pagină.
 4. Al doilea site: instalați același plugin, în Setări alegeți „Afișare de pe alt site” și completați adresa site-ului principal. Puneți [sterea_mini] într-o pagină.
 
@@ -46,7 +46,9 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 == Carduri cadou ==
 
 1. Mini-ședințe → Setări → Carduri cadou: bifează „Arată opțiunea «Oferă cadou» în formularul de rezervare”, alege când pleacă cardul (după confirmarea plății sau imediat), scrie instrucțiunile de plată și pagina de rezervare.
-2. În formularul de rezervare apare, la primul pas, alegerea „Rezerv pentru noi” / „Oferă cadou o ședință foto de Crăciun”. Pentru o pagină dedicată: [sterea_mini cadou="1"] sau [sterea_mini_card_cadou].
+2. În formularul de rezervare apare, la primul pas, alegerea „Rezerv pentru noi” / „Oferă cadou o ședință foto de Crăciun”. Pentru o pagină dedicată: [sterea_mini cadou="1"] sau [sterea_mini_card_cadou]. Pe al doilea site (lipovenesc.ro) merge la fel: comanda ajunge pe site-ul principal, care decide dacă opțiunea apare și cum pleacă cardul.
+   Se pot oferi doar pachetele cu preț, la evenimentele deschise care mai au zile în program (chiar dacă orele sunt ocupate).
+   Imaginea-model a cardului (date de exemplu) pentru pagini și articole: [sterea_mini_card_model stil="craciun"] sau stil="negru"; opțional link="https://…" (imaginea devine link), latime="500" (lățime maximă în px) și alt="…".
 3. Comenzile apar în Mini-ședințe → Carduri cadou. Varianta „după plată”: „Marchează plătit și trimite”. Varianta „imediat”: cardul pleacă la comandă, tu apeși „Am primit plata” când intră banii. Cardul se generează din șablonul din assets/img (Crăciun = verde, restul = negru) și pleacă pe email cu PDF atașat.
 4. Destinatarul rezervă normal și scrie codul (ex. MS-2611-K7PQ) la pasul „Confirmare”; valoarea se scade. Cardul devine „Folosit”; dacă rezervarea se anulează, redevine valabil.
 5. Carduri vândute direct (cash, la studio): „Adaugă card cadou”, completezi, pui status „Plătit, valabil”, salvezi, apoi „Regenerează fișierele” și „Retrimite”.
@@ -56,8 +58,14 @@ Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hosti
 
 = 1.8.1 (2026-11-02) =
 * Cardul cadou este acum în formularul de rezervare: la pasul 1, „Rezerv pentru noi” / „Oferă cadou o ședință foto de Crăciun”; pașii devin Pachet → Cardul cadou (pentru, din partea, ocazie, mesaj, email destinatar, dată) → Datele tale → Confirmare. [sterea_mini cadou="1"] pornește direct pe cadou. Formularul separat a fost scos.
-* Setare nouă: cardul pleacă după confirmarea plății sau imediat după comandă (cu detaliile de plată în același email; „Am primit plata” în listă).
-* Emailuri: numele și adresa expeditorului se setează din Setări (nu mai apare „WordPress”), buton „Trimite un email de test” și jurnalul ultimelor 30 de emailuri (trimis / eșuat, cu eroarea).
+* La pasul „Cardul cadou” se vede modelul cardului (Crăciun sau negru, după eveniment și ocazie), iar sub alegerea de la pasul 1 apare o miniatură. După comandă, dacă cardul pleacă imediat, pagina arată chiar cardul generat.
+* Shortcode nou [sterea_mini_card_model stil="craciun|negru" link="" latime="" alt=""]: imaginea-model a cardului (WebP 1400/700 px, fără ramă, colțuri transparente), oriunde, inclusiv pe al doilea site.
+* Cadoul merge și când evenimentul nu mai are ore libere („Rezerv pentru noi” apare dezactivat); nu se poate oferi pentru un eveniment închis sau încheiat. Data de trimitere către destinatar trebuie să fie în viitor și cel târziu în ultima zi cu ședințe.
+* Pe card, numele lungi și mesajele lungi se scriu mai mic ca să încapă (nu mai sunt tăiate la ~18 caractere).
+* Al doilea site (lipovenesc.ro): opțiunea cadou și modul de trimitere vin de pe site-ul principal; erorile ajung lângă câmpul potrivit; linkurile cardului sunt cele de pe site-ul principal; limita de comenzi se aplică pe vizitator (X-STM-Client-IP), cu un plafon pe server. Verificarea cupoanelor trimite și ea IP-ul vizitatorului.
+* Cache (LiteSpeed etc.): programul și setările de cadou nu se mai păstrează în cache (no-store + semnal pentru LiteSpeed, și pe al doilea site); descărcarea cardului nu se pune în cache.
+* Setare nouă: cardul pleacă după confirmarea plății sau imediat după comandă (cu detaliile de plată în același email; „Am primit plata” în listă și în pagina cardului).
+* Emailuri: numele și adresa expeditorului se setează din Setări (nu mai apare „WordPress”); adresa devine și expeditorul tehnic (Return-Path), altfel releul de email al hostingului respinge mesajele cu „550 Invalid sender”. Bifă nouă: „Folosește această adresă ca expeditor pentru toate emailurile site-ului” (formulare de contact, WordPress). Buton „Trimite un email de test” (arată și eroarea) și jurnalul ultimelor 30 de emailuri.
 
 = 1.8.0 (2026-11-02) =
 * Carduri cadou: formular public [sterea_mini_card_cadou] (ședință dintr-un eveniment sau sumă liberă; pentru cine, din partea cui, ocazie, mesaj; email destinatar și dată de trimitere opționale), cod unic MS-LLAA-XXXX, instrucțiuni de plată pe email, aprobare din admin („Marchează plătit și trimite”), card generat pe server (JPG 8,5×3,5 inch la 300 dpi + PDF, cod de bare Code 128) din șablonul grafic, email către cumpărător și destinatar (imediat sau programat, prin cron), listă în admin cu statusuri (în așteptare, plătit, folosit, expirat, anulat), filtre, retrimitere și regenerare.
