@@ -219,9 +219,9 @@
 .stm-mode-opt[disabled] { opacity: .55; cursor: not-allowed; }
 .stm-mode-opt[disabled]:hover { border-color: var(--stm-line); }
 .stm-app figure { margin: 0; padding: 0; }
-.stm-app .stm-mode-model { display: flex; align-items: center; gap: 10px; margin: -12px 0 22px calc(50% + 5px); }
-.stm-mode-model img { flex: none; display: block; width: 150px; max-width: 45%; height: auto; filter: drop-shadow(0 1px 3px rgba(0,0,0,.18)); }
-.stm-mode-model figcaption { font-size: 12px; color: var(--stm-muted); line-height: 1.35; }
+.stm-app .stm-mode-model { display: block; margin: -8px 0 24px calc(50% + 5px); }
+.stm-mode-model img { display: block; width: 100%; height: auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,.16)); }
+.stm-mode-model figcaption { margin-top: 8px; font-size: 13px; color: var(--stm-muted); line-height: 1.35; text-align: center; }
 .stm-app .stm-gift-model { grid-column: 1 / -1; margin: 0 0 4px; }
 .stm-gift-model img { display: block; width: 100%; max-width: 600px; height: auto; filter: drop-shadow(0 4px 12px rgba(0,0,0,.16)); }
 .stm-gift-model figcaption { font-size: 13px; color: var(--stm-muted); margin-top: 10px; max-width: 600px; }
@@ -231,5 +231,5 @@
 .stm-closed-gift .stm-btn { display: block; margin: 12px auto 0; }
 @media (max-width: 640px) {
 	.stm-mode { grid-template-columns: 1fr; }
-	.stm-app .stm-mode-model { margin-left: 0; }
+	.stm-app .stm-mode-model { margin: -4px auto 22px; max-width: 420px; }
 }

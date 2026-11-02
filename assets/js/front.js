@@ -432,8 +432,8 @@
 				h('span', { class: 'stm-mode-text' }, [h('strong', { text: this.giftTitle() }), h('span', { text: 'card personalizat, primit pe email' })])
 			])
 		]) : null;
-		// Miniatura cardului, discret, sub opțiunea „Oferă cadou” (în afara grupului de opțiuni).
-		var thumb = this.giftOn && this.cfg.model ? h('figure', { class: 'stm-mode-model' }, [this.modelImg('', '150px'), h('figcaption', { text: 'Așa arată cardul cadou' })]) : null;
+		// Modelul cardului sub opțiunea „Oferă cadou” (în afara grupului de opțiuni), pe toată lățimea coloanei, cu textul dedesubt.
+		var thumb = this.giftOn && this.cfg.model ? h('figure', { class: 'stm-mode-model' }, [this.modelImg('', '(max-width: 640px) 100vw, 380px'), h('figcaption', { text: 'Așa arată cardul cadou' })]) : null;
 		var list = gift ? t.packages.filter(priced) : t.packages;
 		var packages = h('div', { class: 'stm-packages', role: 'radiogroup' }, list.map(function (p) {
 			return h('button', {

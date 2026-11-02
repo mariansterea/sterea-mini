@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.8.2
+Stable tag: 1.8.3
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -55,6 +55,9 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.8.3 (2026-11-03) =
+* Modelul cardului de sub „Oferă cadou” e acum mare, pe toată lățimea opțiunii, cu textul „Așa arată cardul cadou” dedesubt.
 
 = 1.8.2 (2026-11-03) =
 * Lista cu pașii formularului nu mai primește numerotare și spații de la temele care stilizează orice listă din conținut (ex. Divi pe lipovenesc.ro).
