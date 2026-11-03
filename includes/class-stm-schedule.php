@@ -149,7 +149,7 @@ class STM_Schedule {
 						<td><strong><?php echo esc_html( $time ); ?></strong></td>
 						<?php if ( $b ) : ?>
 							<td><a href="<?php echo esc_url( get_edit_post_link( $b['id'] ) ); ?>"><?php echo esc_html( $b['name'] ); ?></a></td>
-							<td><?php echo esc_html( $b['phone'] ); ?></td>
+							<td><?php echo esc_html( $b['phone'] ); ?><div class="stm-noprint"><?php echo STM_Helpers::booking_actions( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></div></td>
 							<td><?php echo esc_html( $b['package'] ); ?></td>
 							<td><?php echo (int) $b['people']; ?></td>
 							<td><?php echo esc_html( $b['notes'] ); ?></td>

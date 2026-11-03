@@ -17,6 +17,25 @@
 .stm-quick .stm-ok { color: #1a7a3e; border-color: #8fd1a6; }
 .stm-quick .stm-no { color: #8a1f1f; border-color: #e0a3a3; }
 
+/* ---- Adaugă în calendar / WhatsApp ---- */
+.stm-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.stm-act { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border: 1px solid; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.6; text-decoration: none; white-space: nowrap; transition: background .15s, border-color .15s; }
+.stm-act svg { width: 14px; height: 14px; flex: none; }
+.stm-act:focus { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2271b1; outline: none; }
+.stm-act--cal { background: #eef3fd; border-color: #c9d8f7; color: #1a56c4; }
+.stm-act--cal:hover, .stm-act--cal:focus { background: #dfe9fb; border-color: #a9c1f2; color: #164aa8; }
+.stm-act--wa { background: #e9f7f0; border-color: #bde5d0; color: #0f7a52; }
+.stm-act--wa:hover, .stm-act--wa:focus { background: #d6f0e3; border-color: #94d4b4; color: #0b6142; }
+.stm-acts--big { flex-direction: column; gap: 8px; margin: 4px 0 0; }
+.stm-acts--big .stm-act { justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 8px; font-size: 14px; color: #fff; white-space: normal; text-align: center; }
+.stm-acts--big .stm-act svg { width: 18px; height: 18px; }
+.stm-acts--big .stm-act--cal { background: #1a56c4; border-color: #1a56c4; }
+.stm-acts--big .stm-act--cal:hover, .stm-acts--big .stm-act--cal:focus { background: #164aa8; border-color: #164aa8; color: #fff; }
+.stm-acts--big .stm-act--wa { background: #0f7a52; border-color: #0f7a52; }
+.stm-acts--big .stm-act--wa:hover, .stm-acts--big .stm-act--wa:focus { background: #0b6142; border-color: #0b6142; color: #fff; }
+.stm-wa-label { margin: 14px 0 4px; font-weight: 600; }
+.stm-wa-preview { white-space: pre-wrap; word-break: break-word; background: #f6f7f7; border: 1px solid #e2e4e7; border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.5; color: #3c434a; }
+
 .stm-day-table { max-width: 1100px; margin-top: 12px; }
 .stm-day-table td:first-child { width: 70px; }
 .stm-day-table .stm-free td { color: #a7aaad; }

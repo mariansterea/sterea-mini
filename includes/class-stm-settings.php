@@ -93,6 +93,7 @@ class STM_Settings {
 			'mail_from_name' => sanitize_text_field( isset( $in['mail_from_name'] ) ? $in['mail_from_name'] : '' ),
 			'mail_from'     => sanitize_email( isset( $in['mail_from'] ) ? $in['mail_from'] : '' ),
 			'mail_sender_all' => empty( $in['mail_sender_all'] ) ? 0 : 1,
+			'wa_text'       => sanitize_textarea_field( isset( $in['wa_text'] ) ? $in['wa_text'] : '' ),
 		);
 		// Cheia JSON a contului de serviciu: se păstrează cea veche dacă nu s-a lipit alta.
 		$json_in = trim( (string) ( isset( $in['gcal_json'] ) ? $in['gcal_json'] : '' ) );
@@ -208,6 +209,11 @@ class STM_Settings {
 						<th><label for="stm-info">Informații utile pentru client</label></th>
 						<td><textarea id="stm-info" rows="4" class="large-text" name="<?php echo esc_attr( self::name( 'info_text' ) ); ?>"><?php echo esc_textarea( $s['info_text'] ); ?></textarea>
 						<p class="description">Apar în emailul de confirmare și în reamintire (ce să aducă, ținută, parcare etc.).</p></td>
+					</tr>
+					<tr>
+						<th><label for="stm-wa">Mesaj de confirmare pe WhatsApp</label></th>
+						<td><textarea id="stm-wa" rows="5" class="large-text" name="<?php echo esc_attr( self::name( 'wa_text' ) ); ?>"><?php echo esc_textarea( $s['wa_text'] ); ?></textarea>
+						<p class="description">Butonul „Trimite confirmarea pe WhatsApp” (în emailul de rezervare nouă, pe Telegram și la fiecare rezervare din admin) deschide WhatsApp la client cu acest text gata scris; tu apeși Trimite. Se completează singure: {prenume}, {nume}, {eveniment}, {data}, {ora}, {durata}, {persoane}, {pachet}, {total}, {locatie}, {harta} (linkul Google Maps), {semnatura} (numele expeditorului). Gol = textul implicit.</p></td>
 					</tr>
 				</table>
 

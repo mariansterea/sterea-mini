@@ -241,7 +241,7 @@ class STM_Dashboard {
 							<?php foreach ( array_slice( $s['upcoming'], 0, 12 ) as $b ) : ?>
 								<tr>
 									<td><strong><?php echo esc_html( wp_date( 'D j M', strtotime( substr( $b['start'], 0, 10 ) . ' 12:00' ) ) ); ?></strong> <?php echo esc_html( substr( $b['start'], 11, 5 ) ); ?></td>
-									<td><a href="<?php echo esc_url( get_edit_post_link( $b['id'] ) ); ?>"><?php echo esc_html( $b['name'] ); ?></a><br><span class="stm-muted"><?php echo esc_html( $b['phone'] ); ?></span></td>
+									<td><a href="<?php echo esc_url( get_edit_post_link( $b['id'] ) ); ?>"><?php echo esc_html( $b['name'] ); ?></a><br><span class="stm-muted"><?php echo esc_html( $b['phone'] ); ?></span><?php echo STM_Helpers::booking_actions( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
 									<td><?php echo esc_html( $b['package'] ); ?><br><span class="stm-muted"><?php echo esc_html( STM_Helpers::money( STM_Helpers::amount( $b ) ) ); ?><?php echo ! empty( $b['coupon'] ) ? ' · ' . esc_html( $b['coupon'] ) : ''; ?></span></td>
 									<td><?php echo STM_Bookings::status_cell( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
 								</tr>

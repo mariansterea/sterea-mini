@@ -45,6 +45,7 @@ class STM_Helpers {
 			'mail_from_name' => 'Marian Sterea',
 			'mail_from'     => '',
 			'mail_sender_all' => 0,
+			'wa_text'       => "Bună ziua, {prenume}! Vă confirmăm rezervarea la {eveniment}: {data}, ora {ora}, {persoane}.\nNe vedem la {locatie}.\n{harta}\nDacă intervine ceva, scrieți-ne aici. Mulțumim, {semnatura}",
 		);
 	}
 
@@ -506,6 +507,152 @@ class STM_Helpers {
 		return '<p><strong>Contact:</strong> ' . ( $name ? esc_html( $name ) . ', ' : '' )
 			. '<a href="tel:' . esc_attr( $digits ) . '">' . esc_html( $label ? $label : $phone ) . '</a>'
 			. ' · <a href="https://wa.me/' . esc_attr( $wa ) . '">WhatsApp</a></p>';
+	}
+
+	/* ---------- Calendar și WhatsApp pentru fotograf ---------- */
+
+	/**
+	 * Număr pentru wa.me: doar cifre, cu prefixul țării (07xx → 407xx, 0040 → 40).
+	 */
+	public static function wa_number( $phone ) {
+		$digits = preg_replace( '/\D+/', '', (string) $phone );
+		if ( 0 === strpos( $digits, '00' ) ) {
+			$digits = substr( $digits, 2 );
+		} elseif ( 0 === strpos( $digits, '0' ) ) {
+			$digits = '4' . $digits;
+		} elseif ( 9 === strlen( $digits ) && '7' === $digits[0] ) {
+			$digits = '40' . $digits;
+		}
+		return strlen( $digits ) >= 8 ? $digits : '';
+	}
+
+	public static function people_label( $n ) {
+		$n = max( 1, (int) $n );
+		return 1 === $n ? '1 persoană' : ( $n < 20 ? $n . ' persoane' : $n . ' de persoane' );
+	}
+
+	public static function place( $theme ) {
+		return trim( $theme['location'] . ( $theme['address'] ? ', ' . $theme['address'] : '' ), ', ' );
+	}
+
+	/**
+	 * Link Google Maps al evenimentului (cel din eveniment sau o căutare după adresă).
+	 */
+	public static function map_link( $theme ) {
+		if ( ! empty( $theme['map_url'] ) ) {
+			return $theme['map_url'];
+		}
+		$place = self::place( $theme );
+		return $place ? 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( $place ) : '';
+	}
+
+	/**
+	 * „Adaugă în Google Calendar” pentru fotograf: evenimentul vine completat cu toate datele clientului.
+	 * Merge pe calculator și pe telefon (se deschide Google Calendar, apeși Salvează).
+	 */
+	public static function admin_gcal_url( $b ) {
+		if ( empty( $b['start'] ) ) {
+			return '';
+		}
+		$theme = self::theme_meta( $b['theme'] );
+		$tz    = wp_timezone();
+		$utc   = new DateTimeZone( 'UTC' );
+		$start = new DateTimeImmutable( $b['start'], $tz );
+		$end   = $start->modify( '+' . max( 5, (int) $theme['duration'] ) . ' minutes' );
+		$lines = array( trim( (string) $b['name'] ) );
+		if ( $b['phone'] ) {
+			$lines[] = $b['phone'];
+		}
+		if ( $b['email'] ) {
+			$lines[] = $b['email'];
+		}
+		$lines[] = '';
+		$lines[] = self::people_label( $b['people'] );
+		if ( $b['package'] ) {
+			$lines[] = 'Pachet: ' . $b['package'] . ( $b['price'] ? ' – ' . self::price_label( $b['price'] ) : '' );
+		}
+		if ( ! empty( $b['coupon'] ) && '' !== (string) $b['discount'] && (float) $b['discount'] > 0 ) {
+			$lines[] = 'Reducere ' . $b['coupon'] . ': −' . self::money( $b['discount'] ) . ', total ' . self::money( $b['total'] );
+		}
+		if ( $b['notes'] ) {
+			$lines[] = 'Observații: ' . $b['notes'];
+		}
+		if ( 'pending' === $b['status'] ) {
+			$lines[] = 'Status: în așteptarea confirmării';
+		}
+		if ( ! empty( $b['id'] ) ) {
+			$lines[] = '';
+			$lines[] = 'Rezervarea: ' . admin_url( 'post.php?post=' . (int) $b['id'] . '&action=edit' );
+		}
+		$args = array(
+			'action'   => 'TEMPLATE',
+			'text'     => 'Mini-ședință foto: ' . wp_specialchars_decode( get_the_title( $b['theme'] ), ENT_QUOTES ),
+			'dates'    => $start->setTimezone( $utc )->format( 'Ymd\THis\Z' ) . '/' . $end->setTimezone( $utc )->format( 'Ymd\THis\Z' ),
+			'details'  => implode( "\n", $lines ),
+			'location' => self::place( $theme ),
+			'ctz'      => wp_timezone_string(),
+		);
+		return 'https://calendar.google.com/calendar/render?' . http_build_query( $args, '', '&', PHP_QUERY_RFC3986 );
+	}
+
+	/**
+	 * Textul de confirmare pentru WhatsApp, din Setări, cu datele rezervării.
+	 */
+	public static function wa_message( $b ) {
+		$theme = self::theme_meta( $b['theme'] );
+		$name  = trim( (string) $b['name'] );
+		$first = $name ? preg_split( '/\s+/', $name )[0] : '';
+		$date  = self::date_label( substr( $b['start'], 0, 10 ) );
+		$date  = mb_strtolower( mb_substr( $date, 0, 1 ) ) . mb_substr( $date, 1 );
+		$text  = (string) self::get( 'wa_text' );
+		if ( '' === trim( $text ) ) {
+			$text = self::defaults()['wa_text'];
+		}
+		$map  = array(
+			'{prenume}'   => $first,
+			'{nume}'      => $name,
+			'{eveniment}' => wp_specialchars_decode( get_the_title( $b['theme'] ), ENT_QUOTES ),
+			'{data}'      => $date,
+			'{ora}'       => substr( $b['start'], 11, 5 ),
+			'{durata}'    => (int) $theme['duration'] . ' min',
+			'{persoane}'  => self::people_label( $b['people'] ),
+			'{pachet}'    => (string) $b['package'],
+			'{total}'     => self::money( self::amount( $b ) ),
+			'{locatie}'   => self::place( $theme ),
+			'{harta}'     => self::map_link( $theme ),
+			'{semnatura}' => self::mail_from_name(),
+		);
+		$text = strtr( $text, $map );
+		// Rânduri rămase goale (ex. fără hartă) și spații în plus.
+		$text = preg_replace( "/[ \t]+\n/", "\n", $text );
+		$text = preg_replace( "/\n{3,}/", "\n\n", $text );
+		return trim( preg_replace( "/^\s*\n/m", '', $text ) );
+	}
+
+	public static function wa_url( $b ) {
+		$num = self::wa_number( isset( $b['phone'] ) ? $b['phone'] : '' );
+		return $num ? 'https://wa.me/' . $num . '?text=' . rawurlencode( self::wa_message( $b ) ) : '';
+	}
+
+	/**
+	 * Butoanele „Adaugă în calendar” și „Confirmă pe WhatsApp” din admin. HTML escapat.
+	 *
+	 * @param array  $b    Rezervarea.
+	 * @param string $size 'small' (liste) sau 'big' (pagina rezervării).
+	 */
+	public static function booking_actions( $b, $size = 'small' ) {
+		if ( empty( $b['start'] ) || 'cancelled' === $b['status'] ) {
+			return '';
+		}
+		$cal  = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1Zm13 8H4v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9ZM8 13h3v3H8v-3Z"/></svg>';
+		$wa   = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z"/></svg>';
+		$big  = 'big' === $size;
+		$html = '<a class="stm-act stm-act--cal" href="' . esc_url( self::admin_gcal_url( $b ) ) . '" target="_blank" rel="noopener" title="Se deschide Google Calendar cu ședința completată; apeși Salvează">' . $cal . '<span>' . ( $big ? 'Adaugă în Google Calendar' : 'Calendar' ) . '</span></a>';
+		$wurl = self::wa_url( $b );
+		if ( $wurl ) {
+			$html .= '<a class="stm-act stm-act--wa" href="' . esc_url( $wurl ) . '" target="_blank" rel="noopener" title="Se deschide WhatsApp cu mesajul de confirmare gata scris; apeși Trimite">' . $wa . '<span>' . ( $big ? 'Trimite confirmarea pe WhatsApp' : 'WhatsApp' ) . '</span></a>';
+		}
+		return '<div class="stm-acts' . ( $big ? ' stm-acts--big' : '' ) . '">' . $html . '</div>';
 	}
 
 	private static function log_mail( $to, $subject, $ok, $error ) {

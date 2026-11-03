@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.8.5
+Stable tag: 1.8.6
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -19,6 +19,7 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 * Formular pe site: pachet → zi → oră → date client. Fără plată online.
 * O oră nu poate fi rezervată de două ori (blocare la nivel de bază de date).
 * Emailuri: confirmare către client (cu „Adaugă în calendar” și link de anulare), notificare către voi, reamintire cu o zi înainte.
+* La fiecare rezervare, pentru fotograf: „Adaugă în Google Calendar” (ședința vine completată cu numele, telefonul, emailul, câte persoane vin, pachetul și observațiile) și „Trimite confirmarea pe WhatsApp” (se deschide WhatsApp la client cu mesajul gata scris). Sunt în emailul de rezervare nouă (deci și în copia de pe Telegram), în pagina rezervării, în lista de rezervări, în „Programul zilei” și în Dashboard.
 * Clientul își poate anula singur rezervarea; ora se eliberează automat.
 * Rezervări adăugate manual (telefonic), confirmare manuală opțională.
 * „Programul zilei”: lista clienților pe ore, gata de printat, plus „Descarcă PDF” (ziua sau toate zilele).
@@ -55,6 +56,10 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.8.6 (2026-11-03) =
+* Butoane noi „Adaugă în Google Calendar” și „Trimite confirmarea pe WhatsApp” pentru fotograf: în emailul de rezervare nouă (și în copia de pe Telegram), în pagina rezervării (caseta „Calendar și WhatsApp”, cu mesajul care pleacă), în lista de rezervări, în „Programul zilei” și în Dashboard. Calendarul se deschide cu ședința completată (nume, telefon, email, persoane, pachet, reducere, observații), pe calculator și pe telefon.
+* WhatsApp fără costuri: linkul wa.me deschide conversația cu clientul și mesajul de confirmare gata scris; textul se schimbă din Setări („Mesaj de confirmare pe WhatsApp”).
 
 = 1.8.5 (2026-11-03) =
 * Golirea automată a cache-ului după actualizare rulează după ce s-au încărcat toate modulele (wp_loaded) și nu mai poate opri pagina dacă pluginul de cache dă eroare (la 1.8.4, pe un site cu WP Rocket, prima pagină din admin după actualizare dădea eroare o singură dată).

@@ -333,6 +333,29 @@ class STM_Bookings {
 
 	public static function meta_boxes() {
 		add_meta_box( 'stm_booking', 'Detalii rezervare', array( __CLASS__, 'box' ), STM_Helpers::CPT_BOOKING, 'normal', 'high' );
+		add_meta_box( 'stm_booking_acts', 'Calendar și WhatsApp', array( __CLASS__, 'box_actions' ), STM_Helpers::CPT_BOOKING, 'side', 'high' );
+	}
+
+	/**
+	 * Butoanele mari „Adaugă în Google Calendar” / „Trimite confirmarea pe WhatsApp”, cu mesajul care pleacă.
+	 */
+	public static function box_actions( $post ) {
+		$b = self::get( $post->ID );
+		if ( empty( $b['start'] ) || in_array( $post->post_status, array( 'auto-draft', 'draft' ), true ) ) {
+			echo '<p class="description">Butoanele apar după ce salvezi rezervarea.</p>';
+			return;
+		}
+		if ( 'cancelled' === $b['status'] ) {
+			echo '<p class="description">Rezervarea este anulată.</p>';
+			return;
+		}
+		echo STM_Helpers::booking_actions( $b, 'big' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție.
+		if ( STM_Helpers::wa_url( $b ) ) {
+			echo '<p class="stm-wa-label">Mesajul pe WhatsApp:</p><div class="stm-wa-preview">' . esc_html( STM_Helpers::wa_message( $b ) ) . '</div>';
+			echo '<p class="description">Textul se schimbă din Setări, la „Mesaj de confirmare pe WhatsApp”.</p>';
+		} else {
+			echo '<p class="description">Fără număr de telefon valid nu se poate deschide WhatsApp.</p>';
+		}
 	}
 
 	public static function box( $post ) {
@@ -577,6 +600,7 @@ class STM_Bookings {
 				if ( $b['email'] ) {
 					echo '<a href="mailto:' . esc_attr( $b['email'] ) . '">' . esc_html( $b['email'] ) . '</a>';
 				}
+				echo STM_Helpers::booking_actions( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție.
 				break;
 			case 'stm_theme':
 				echo esc_html( $b['theme'] ? get_the_title( $b['theme'] ) : '–' );
