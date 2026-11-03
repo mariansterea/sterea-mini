@@ -97,10 +97,10 @@ class STM_Emails {
 	 */
 	private static function admin_buttons( $b ) {
 		$btn  = 'display:inline-block;padding:11px 16px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;color:#ffffff';
-		$cells = '<td style="padding:0 8px 8px 0"><a href="' . esc_url( STM_Helpers::admin_gcal_url( $b ) ) . '" style="' . $btn . ';background:#1a56c4">Adaugă în Google Calendar</a></td>';
+		$cells = '<td style="padding:0 8px 8px 0"><a href="' . STM_Helpers::text_href( STM_Helpers::admin_gcal_url( $b ) ) . '" style="' . $btn . ';background:#1a56c4">Adaugă în Google Calendar</a></td>';
 		$wa    = STM_Helpers::wa_url( $b );
 		if ( $wa ) {
-			$cells .= '<td style="padding:0 8px 8px 0"><a href="' . esc_url( $wa ) . '" style="' . $btn . ';background:#0f7a52">Trimite confirmarea pe WhatsApp</a></td>';
+			$cells .= '<td style="padding:0 8px 8px 0"><a href="' . STM_Helpers::text_href( $wa ) . '" style="' . $btn . ';background:#0f7a52">Trimite confirmarea pe WhatsApp</a></td>';
 		}
 		return '<table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0 4px"><tr>' . $cells . '</tr></table>'
 			. '<p style="margin:0 0 14px;font-size:13px;color:#667085">Calendarul se deschide cu ședința completată, apeși Salvează. WhatsApp se deschide la client cu mesajul de confirmare gata scris, apeși Trimite.</p>';

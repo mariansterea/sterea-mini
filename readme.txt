@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.8.6
+Stable tag: 1.8.7
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -56,6 +56,11 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.8.7 (2026-11-03) =
+* Mesajul de pe WhatsApp scrie numele clientului cu majusculă, chiar dacă în formular a fost scris cu litere mici („Tatiana”, nu „tatiana”).
+* Evenimentul din Google Calendar și mesajul de WhatsApp își păstrează rândurile. Înainte, textul ajungea lipit („0728646793caraenache@…”), pentru că rândurile noi se pierdeau din link.
+* Și în calendar numele clientului apare cu majusculă.
 
 = 1.8.6 (2026-11-03) =
 * Butoane noi „Adaugă în Google Calendar” și „Trimite confirmarea pe WhatsApp” pentru fotograf: în emailul de rezervare nouă (și în copia de pe Telegram), în pagina rezervării (caseta „Calendar și WhatsApp”, cu mesajul care pleacă), în lista de rezervări, în „Programul zilei” și în Dashboard. Calendarul se deschide cu ședința completată (nume, telefon, email, persoane, pachet, reducere, observații), pe calculator și pe telefon.

@@ -526,6 +526,28 @@ class STM_Helpers {
 		return strlen( $digits ) >= 8 ? $digits : '';
 	}
 
+	/**
+	 * Numele scris cu litere mici în formular („tatiana caraenache”) apare frumos („Tatiana Caraenache”).
+	 * Un nume scris deja cu majuscule rămâne cum l-a scris clientul.
+	 */
+	public static function nice_name( $name ) {
+		$name = trim( preg_replace( '/\s+/u', ' ', (string) $name ) );
+		return ( '' !== $name && mb_strtolower( $name, 'UTF-8' ) === $name ) ? mb_convert_case( $name, MB_CASE_TITLE, 'UTF-8' ) : $name;
+	}
+
+	/**
+	 * href pentru linkurile cu text lung (Google Calendar, WhatsApp). esc_url() șterge %0A, adică rândurile
+	 * noi, și textul ajunge lipit („0728646793caraenache@…”). Linkurile le construim noi, codate complet,
+	 * așa că pentru acestea e de ajuns esc_attr(); orice alt link trece tot prin esc_url().
+	 */
+	public static function text_href( $url ) {
+		$url = (string) $url;
+		if ( preg_match( '#^https://(calendar\.google\.com/calendar/render|wa\.me/\d+)\?[A-Za-z0-9%._~&=+-]*$#', $url ) ) {
+			return esc_attr( $url );
+		}
+		return esc_url( $url );
+	}
+
 	public static function people_label( $n ) {
 		$n = max( 1, (int) $n );
 		return 1 === $n ? '1 persoană' : ( $n < 20 ? $n . ' persoane' : $n . ' de persoane' );
@@ -559,7 +581,7 @@ class STM_Helpers {
 		$utc   = new DateTimeZone( 'UTC' );
 		$start = new DateTimeImmutable( $b['start'], $tz );
 		$end   = $start->modify( '+' . max( 5, (int) $theme['duration'] ) . ' minutes' );
-		$lines = array( trim( (string) $b['name'] ) );
+		$lines = array( self::nice_name( $b['name'] ) );
 		if ( $b['phone'] ) {
 			$lines[] = $b['phone'];
 		}
@@ -600,7 +622,7 @@ class STM_Helpers {
 	 */
 	public static function wa_message( $b ) {
 		$theme = self::theme_meta( $b['theme'] );
-		$name  = trim( (string) $b['name'] );
+		$name  = self::nice_name( $b['name'] );
 		$first = $name ? preg_split( '/\s+/', $name )[0] : '';
 		$date  = self::date_label( substr( $b['start'], 0, 10 ) );
 		$date  = mb_strtolower( mb_substr( $date, 0, 1 ) ) . mb_substr( $date, 1 );
@@ -647,10 +669,10 @@ class STM_Helpers {
 		$cal  = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1Zm13 8H4v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9ZM8 13h3v3H8v-3Z"/></svg>';
 		$wa   = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z"/></svg>';
 		$big  = 'big' === $size;
-		$html = '<a class="stm-act stm-act--cal" href="' . esc_url( self::admin_gcal_url( $b ) ) . '" target="_blank" rel="noopener" title="Se deschide Google Calendar cu ședința completată; apeși Salvează">' . $cal . '<span>' . ( $big ? 'Adaugă în Google Calendar' : 'Calendar' ) . '</span></a>';
+		$html = '<a class="stm-act stm-act--cal" href="' . self::text_href( self::admin_gcal_url( $b ) ) . '" target="_blank" rel="noopener" title="Se deschide Google Calendar cu ședința completată; apeși Salvează">' . $cal . '<span>' . ( $big ? 'Adaugă în Google Calendar' : 'Calendar' ) . '</span></a>';
 		$wurl = self::wa_url( $b );
 		if ( $wurl ) {
-			$html .= '<a class="stm-act stm-act--wa" href="' . esc_url( $wurl ) . '" target="_blank" rel="noopener" title="Se deschide WhatsApp cu mesajul de confirmare gata scris; apeși Trimite">' . $wa . '<span>' . ( $big ? 'Trimite confirmarea pe WhatsApp' : 'WhatsApp' ) . '</span></a>';
+			$html .= '<a class="stm-act stm-act--wa" href="' . self::text_href( $wurl ) . '" target="_blank" rel="noopener" title="Se deschide WhatsApp cu mesajul de confirmare gata scris; apeși Trimite">' . $wa . '<span>' . ( $big ? 'Trimite confirmarea pe WhatsApp' : 'WhatsApp' ) . '</span></a>';
 		}
 		return '<div class="stm-acts' . ( $big ? ' stm-acts--big' : '' ) . '">' . $html . '</div>';
 	}
