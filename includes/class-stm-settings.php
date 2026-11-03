@@ -213,7 +213,7 @@ class STM_Settings {
 					<tr>
 						<th><label for="stm-wa">Mesaj de confirmare pe WhatsApp</label></th>
 						<td><textarea id="stm-wa" rows="5" class="large-text" name="<?php echo esc_attr( self::name( 'wa_text' ) ); ?>"><?php echo esc_textarea( $s['wa_text'] ); ?></textarea>
-						<p class="description">Butonul „Trimite confirmarea pe WhatsApp” (în emailul de rezervare nouă, pe Telegram și la fiecare rezervare din admin) deschide WhatsApp la client cu acest text gata scris; tu apeși Trimite. Se completează singure: {prenume}, {nume}, {eveniment}, {data}, {ora}, {durata}, {persoane}, {pachet}, {total}, {locatie}, {harta} (linkul Google Maps), {semnatura} (numele expeditorului). Gol = textul implicit.</p></td>
+						<p class="description">Butonul „Trimite confirmarea pe WhatsApp” (în emailul de rezervare nouă, pe Telegram și la fiecare rezervare din admin) deschide WhatsApp la client cu acest text gata scris; tu apeși Trimite. Se completează singure: {prenume}, {nume}, {eveniment}, {data}, {ora}, {durata}, {persoane}, {pachet}, {total}, {locatie}, {harta} (linkul Google Maps), {semnatura} (numele expeditorului). Un rând gol între paragrafe rămâne și pe WhatsApp. Gol = textul implicit.</p></td>
 					</tr>
 				</table>
 

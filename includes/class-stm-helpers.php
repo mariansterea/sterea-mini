@@ -45,7 +45,7 @@ class STM_Helpers {
 			'mail_from_name' => 'Marian Sterea',
 			'mail_from'     => '',
 			'mail_sender_all' => 0,
-			'wa_text'       => "Bună ziua, {prenume}! Vă confirmăm rezervarea la {eveniment}: {data}, ora {ora}, {persoane}.\nNe vedem la {locatie}.\n{harta}\nDacă intervine ceva, scrieți-ne aici. Mulțumim, {semnatura}",
+			'wa_text'       => "Bună ziua, {prenume}!\n\nVă confirmăm rezervarea la {eveniment}: {data}, ora {ora}, {persoane}.\n\nNe vedem la {locatie}.\n{harta}\n\nDacă intervine ceva, scrieți-ne aici.\n\nMulțumim,\n{semnatura}",
 		);
 	}
 
@@ -644,11 +644,19 @@ class STM_Helpers {
 			'{harta}'     => self::map_link( $theme ),
 			'{semnatura}' => self::mail_from_name(),
 		);
-		$text = strtr( $text, $map );
-		// Rânduri rămase goale (ex. fără hartă) și spații în plus.
-		$text = preg_replace( "/[ \t]+\n/", "\n", $text );
-		$text = preg_replace( "/\n{3,}/", "\n\n", $text );
-		return trim( preg_replace( "/^\s*\n/m", '', $text ) );
+		// Rândurile goale puse în Setări rămân (paragrafe). Dispare doar rândul unui câmp gol,
+		// de exemplu {harta} la un eveniment fără link de hartă.
+		$text = str_replace( array( "\r\n", "\r" ), "\n", $text );
+		$out  = array();
+		foreach ( explode( "\n", $text ) as $line ) {
+			$has  = (bool) preg_match( '/\{[a-z]+\}/', $line );
+			$line = rtrim( strtr( $line, $map ) );
+			if ( $has && '' === trim( $line ) ) {
+				continue;
+			}
+			$out[] = $line;
+		}
+		return trim( preg_replace( "/\n{3,}/", "\n\n", implode( "\n", $out ) ) );
 	}
 
 	public static function wa_url( $b ) {

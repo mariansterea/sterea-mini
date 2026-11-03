@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.8.7
+Stable tag: 1.8.8
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -56,6 +56,9 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.8.8 (2026-11-03) =
+* Mesajul de WhatsApp păstrează rândurile goale dintre paragrafe, așa cum sunt scrise în Setări. Dispare doar rândul unui câmp gol (de exemplu {harta}, când evenimentul nu are hartă).
 
 = 1.8.7 (2026-11-03) =
 * Mesajul de pe WhatsApp scrie numele clientului cu majusculă, chiar dacă în formular a fost scris cu litere mici („Tatiana”, nu „tatiana”).
