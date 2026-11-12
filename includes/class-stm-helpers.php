@@ -22,6 +22,7 @@ class STM_Helpers {
 		return array(
 			'mode'          => 'main',
 			'remote_url'    => '',
+			'remote_direct' => 0,
 			'notify_email'  => get_option( 'admin_email' ),
 			'auto_confirm'  => 1,
 			'contact_phone' => '',
@@ -61,6 +62,15 @@ class STM_Helpers {
 
 	public static function is_remote() {
 		return 'remote' === self::get( 'mode' ) && self::remote_url();
+	}
+
+	/**
+	 * Afișare de pe alt site, dar browserul vizitatorului apelează direct API-ul site-ului principal
+	 * (fără proxy prin serverul acestui site). Util când hostingul site-ului principal blochează
+	 * cererile server-la-server; WordPress acceptă oricum cereri REST din browser de pe alt site (CORS).
+	 */
+	public static function is_direct() {
+		return self::is_remote() && self::get( 'remote_direct' );
 	}
 
 	public static function remote_url() {

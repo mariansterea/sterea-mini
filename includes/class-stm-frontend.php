@@ -48,7 +48,8 @@ class STM_Frontend {
 		}
 		wp_enqueue_script( 'stm-front' );
 
-		$api    = add_query_arg( 'rest_route', '/' . STM_Rest::NS, home_url( '/' ) );
+		// În modul „direct”, browserul vizitatorului apelează API-ul site-ului principal (nu proxy-ul de aici).
+		$api    = add_query_arg( 'rest_route', '/' . STM_Rest::NS, ( STM_Helpers::is_direct() ? STM_Helpers::remote_url() : home_url() ) . '/' );
 		// Pe site-ul principal contează setarea locală; pe un site secundar decide site-ul principal.
 		// Formularul ia oricum valorile la zi din /themes (pagina poate fi în cache), acestea sunt doar rezerva.
 		$gift   = STM_Helpers::is_remote() || STM_Helpers::get( 'gift_enabled' );
@@ -63,6 +64,8 @@ class STM_Frontend {
 		}
 		$config = array(
 			'phone'       => (string) STM_Helpers::get( 'contact_phone' ),
+			// „Rezervat de pe”: în modul direct, site-ul principal nu mai primește cererea de la proxy-ul de aici.
+			'source'      => (string) wp_parse_url( home_url(), PHP_URL_HOST ),
 			'gift'        => (bool) $gift,
 			'giftFirst'   => (bool) absint( $atts['cadou'] ),
 			'giftInstant' => 'instant' === STM_Helpers::get( 'gift_send' ),

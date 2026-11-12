@@ -70,6 +70,7 @@ class STM_Settings {
 		$out = array(
 			'mode'          => isset( $in['mode'] ) && 'remote' === $in['mode'] ? 'remote' : 'main',
 			'remote_url'    => esc_url_raw( trim( isset( $in['remote_url'] ) ? (string) $in['remote_url'] : '' ) ),
+			'remote_direct' => empty( $in['remote_direct'] ) ? 0 : 1,
 			'notify_email'  => implode( ', ', array_filter( array_map( 'sanitize_email', explode( ',', isset( $in['notify_email'] ) ? (string) $in['notify_email'] : '' ) ) ) ),
 			'auto_confirm'  => empty( $in['auto_confirm'] ) ? 0 : 1,
 			'contact_phone' => sanitize_text_field( isset( $in['contact_phone'] ) ? $in['contact_phone'] : '' ),
@@ -146,6 +147,13 @@ class STM_Settings {
 			add_settings_error( STM_Helpers::OPTION, 'stm_self', 'Adresa site-ului principal nu poate fi chiar acest site.' );
 		}
 		delete_transient( 'stm_remote_0' );
+		// Adresa API-ului e scrisă în pagina cu formularul: dacă s-a schimbat modul, pagina din cache e veche.
+		foreach ( array( 'mode', 'remote_url', 'remote_direct' ) as $k ) {
+			if ( (string) $out[ $k ] !== (string) $old[ $k ] ) {
+				add_action( 'shutdown', 'stm_purge_caches' );
+				break;
+			}
+		}
 		return $out;
 	}
 
@@ -178,6 +186,13 @@ class STM_Settings {
 						<th><label for="stm-remote">Adresa site-ului principal</label></th>
 						<td><input type="url" id="stm-remote" class="regular-text" name="<?php echo esc_attr( self::name( 'remote_url' ) ); ?>" value="<?php echo esc_attr( $s['remote_url'] ); ?>" placeholder="https://www.mariansterea.ro">
 						<p class="description">Doar pentru „Afișare de pe alt site”. Pe site-ul principal trebuie instalat și activat același plugin.</p></td>
+					</tr>
+					<tr>
+						<th>Mod de încărcare</th>
+						<td>
+							<label><input type="checkbox" name="<?php echo esc_attr( self::name( 'remote_direct' ) ); ?>" value="1" <?php checked( $s['remote_direct'], 1 ); ?>> Browserul vizitatorului cere programul direct de la site-ul principal</label>
+							<p class="description">Doar pentru „Afișare de pe alt site”. Ocolește serverul acestui site: util când hostingul site-ului principal blochează cererile venite de la alt server (formularul rămâne pe „Se încarcă programul…” sau dă „Răspuns invalid de la server”). Rezervările, cupoanele și cardurile cadou ajung tot pe site-ul principal, care acceptă cereri din browser de pe orice site (standard WordPress). Debifat: cererile trec prin serverul acestui site.</p>
+						</td>
 					</tr>
 				</table>
 
@@ -377,7 +392,7 @@ class STM_Settings {
 				<ol>
 					<li>Pe site-ul principal: <strong>Mini-ședințe → Adaugă eveniment</strong> (titlu, descriere, imagine, zile, pachete).</li>
 					<li>Pune <code>[sterea_mini]</code> într-o pagină (toate evenimentele) sau <code>[sterea_mini id="…"]</code> (un singur eveniment).</li>
-					<li>Pe al doilea site: instalezi pluginul, alegi „Afișare de pe alt site”, completezi adresa site-ului principal și pui același shortcode într-o pagină. Dacă folosești <code>id</code>, este ID-ul evenimentului de pe site-ul principal.</li>
+					<li>Pe al doilea site: instalezi pluginul, alegi „Afișare de pe alt site”, completezi adresa site-ului principal și pui același shortcode într-o pagină. Dacă folosești <code>id</code>, este ID-ul evenimentului de pe site-ul principal. Dacă hostingul site-ului principal blochează cererile de la alt server, bifează „Browserul vizitatorului cere programul direct de la site-ul principal”.</li>
 				</ol>
 
 				<?php submit_button( 'Salvează setările' ); ?>
