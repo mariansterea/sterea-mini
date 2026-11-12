@@ -311,6 +311,7 @@
 			notes: s.notes.trim(),
 			consent: s.consent ? '1' : '',
 			coupon: this.coupon ? this.coupon.code : '',
+			source: this.cfg.source || '',
 			website: this.hp ? this.hp.value : ''
 		};
 		api(this.root, '/book', '', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(data) })
