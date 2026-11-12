@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.8.8
+Stable tag: 1.8.9
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -56,6 +56,10 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.8.9 (2026-11-12) =
+* „Afișare de pe alt site”: opțiune nouă „Browserul vizitatorului cere programul direct de la site-ul principal”. Ocolește serverul site-ului secundar când hostingul site-ului principal blochează cererile server-la-server (formularul rămânea pe „Se încarcă programul…”). Rezervarea trimite „Rezervat de pe” și în acest mod.
+* Cache-ul de pagini (WP Rocket, LiteSpeed) se golește când se schimbă rolul site-ului sau modul de încărcare.
 
 = 1.8.8 (2026-11-03) =
 * Mesajul de WhatsApp păstrează rândurile goale dintre paragrafe, așa cum sunt scrise în Setări. Dispare doar rândul unui câmp gol (de exemplu {harta}, când evenimentul nu are hartă).
