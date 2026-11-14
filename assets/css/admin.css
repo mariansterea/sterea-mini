@@ -117,6 +117,19 @@
 .stm-dash-table td, .stm-dash-table th { padding: 6px 8px; }
 .stm-dash-empty { color: #787c82; padding: 10px 0; }
 
+/* ---- Rezervări noi, Schimbă data ---- */
+.stm-badge--new { background: #e5ecfd; color: #2145c9; }
+.stm-new { margin-bottom: 18px; border-left: 4px solid #3858e9; }
+.stm-new ul { margin: 0; }
+.stm-new li { margin: 0 0 4px; }
+.stm-move { margin-top: 6px; font-size: 12px; }
+.stm-move summary { cursor: pointer; color: #2271b1; white-space: nowrap; }
+.stm-move summary:hover { color: #135e96; }
+.stm-move[open] { min-width: 230px; }
+.stm-move form { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin-top: 6px; padding: 8px; background: #f6f7f7; border: 1px solid #dcdcde; border-radius: 6px; }
+.stm-move select { max-width: 100%; }
+.stm-move p { margin: 0; font-size: 12px; }
+
 @media print {
 	#adminmenumain, #wpadminbar, #wpfooter, .stm-noprint, .notice, #screen-meta-links { display: none !important; }
 	#wpcontent { margin-left: 0 !important; padding: 0 !important; }
