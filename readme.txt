@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.8.9
+Stable tag: 1.9.0
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -56,6 +56,12 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.9.0 (2026-11-14) =
+* Rezervări noi: pe meniul „Mini-ședințe” apare o bulină cu numărul rezervărilor noi venite de pe site (1, 2, 3…). Dashboardul le listează sus, la „Rezervări noi”, și le marchează cu „Nouă”; după ce le-ai văzut (în Dashboard, în listă sau în pagina rezervării), bulina dispare.
+* Coș: lista „Rezervări” are mereu tabul „Coș (rezervări șterse)”, cu toate rezervările șterse, și cele trecute. De acolo se pot restaura sau șterge definitiv. O rezervare restaurată revine cu ora ei (dacă e încă liberă) și reapare în Google Calendar. Link către coș și din Dashboard.
+* „Schimbă data” în Dashboard, la „Următoarele rezervări”: alegi una dintre orele libere ale evenimentului și rezervarea se mută acolo; ora veche se eliberează, Google Calendar se actualizează, iar clientul primește (opțional) un email cu noua dată.
+* Dashboardul arată următoarele 30 de rezervări (înainte 12).
 
 = 1.8.9 (2026-11-12) =
 * „Afișare de pe alt site”: opțiune nouă „Browserul vizitatorului cere programul direct de la site-ul principal”. Ocolește serverul site-ului secundar când hostingul site-ului principal blochează cererile server-la-server (formularul rămânea pe „Se încarcă programul…”). Rezervarea trimite „Rezervat de pe” și în acest mod.
