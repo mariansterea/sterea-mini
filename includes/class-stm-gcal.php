@@ -22,6 +22,7 @@ class STM_GCal {
 	public static function init() {
 		add_action( 'stm_booking_created', array( __CLASS__, 'sync' ), 20 );
 		add_action( 'stm_booking_status', array( __CLASS__, 'on_status' ), 20, 3 );
+		add_action( 'stm_booking_moved', array( __CLASS__, 'sync' ), 20 );
 		add_action( 'save_post_' . STM_Helpers::CPT_BOOKING, array( __CLASS__, 'on_save' ), 20, 2 );
 		add_action( 'before_delete_post', array( __CLASS__, 'on_delete' ) );
 		add_action( 'wp_trash_post', array( __CLASS__, 'on_delete' ) );

@@ -36,6 +36,9 @@ class STM_Bookings {
 		add_action( 'admin_notices', array( __CLASS__, 'notices' ) );
 		add_filter( 'bulk_actions-edit-' . STM_Helpers::CPT_BOOKING, array( __CLASS__, 'bulk_actions' ) );
 		add_filter( 'handle_bulk_actions-edit-' . STM_Helpers::CPT_BOOKING, array( __CLASS__, 'handle_bulk' ), 10, 3 );
+		add_filter( 'wp_untrash_post_status', array( __CLASS__, 'untrash_status' ), 10, 3 );
+		add_filter( 'views_edit-' . STM_Helpers::CPT_BOOKING, array( __CLASS__, 'views' ) );
+		add_action( 'admin_post_stm_move', array( __CLASS__, 'handle_move' ) );
 	}
 
 	/* ---------- Setup ---------- */
@@ -323,10 +326,168 @@ class STM_Bookings {
 
 	public static function on_untrash( $post_id ) {
 		$b = self::get( $post_id );
-		if ( $b && 'cancelled' !== $b['status'] && ! self::lock( $b['theme'], $b['start'], $post_id ) ) {
+		// Ciornele (rezervări manuale fără oră validă) nu au avut niciodată o oră blocată.
+		if ( ! $b || ! $b['start'] || 'publish' !== get_post_status( $post_id ) ) {
+			return;
+		}
+		if ( 'cancelled' !== $b['status'] && ! self::lock( $b['theme'], $b['start'], $post_id ) && self::lock_owner( $b['theme'], $b['start'] ) !== (int) $post_id ) {
 			update_post_meta( $post_id, '_stm_status', 'cancelled' );
 			set_transient( 'stm_notice_' . get_current_user_id(), 'Rezervarea a fost restaurată ca „Anulată”, pentru că ora ei a fost ocupată între timp.', 60 );
 		}
+		// Rezervarea restaurată revine și în Google Calendar (a fost scoasă la mutarea în coș).
+		if ( class_exists( 'STM_GCal' ) ) {
+			STM_GCal::sync( $post_id );
+		}
+	}
+
+	/**
+	 * O rezervare scoasă din coș revine cu starea dinainte (publicată), nu ca ciornă,
+	 * altfel nu ar mai apărea în Dashboard, în program și în exporturi.
+	 */
+	public static function untrash_status( $new_status, $post_id, $previous_status ) {
+		if ( get_post_type( $post_id ) === STM_Helpers::CPT_BOOKING && $previous_status ) {
+			return $previous_status;
+		}
+		return $new_status;
+	}
+
+	/* ---------- Mutarea unei rezervări pe altă dată / oră ---------- */
+
+	/**
+	 * Orele libere viitoare ale unui eveniment: [ 'Y-m-d' => [ 'H:i', ... ] ].
+	 */
+	public static function free_slots( $theme_id ) {
+		static $cache = array();
+		$theme_id = (int) $theme_id;
+		if ( isset( $cache[ $theme_id ] ) ) {
+			return $cache[ $theme_id ];
+		}
+		$meta    = STM_Helpers::theme_meta( $theme_id );
+		$taken   = STM_Helpers::taken( $theme_id );
+		$blocked = is_array( $meta['blocked'] ) ? $meta['blocked'] : array();
+		$now     = STM_Helpers::now()->format( 'Y-m-d H:i' );
+		$out     = array();
+		foreach ( (array) $meta['days'] as $day ) {
+			if ( empty( $day['date'] ) || STM_Helpers::is_day_off( $day['date'] ) ) {
+				continue;
+			}
+			foreach ( STM_Helpers::day_slots( $meta, $day ) as $time ) {
+				$key = $day['date'] . ' ' . $time;
+				if ( $key > $now && ! isset( $taken[ $key ] ) && ! in_array( $key, $blocked, true ) ) {
+					$out[ $day['date'] ][] = $time;
+				}
+			}
+		}
+		ksort( $out );
+		$cache[ $theme_id ] = $out;
+		return $out;
+	}
+
+	/**
+	 * Mută rezervarea pe altă oră a aceluiași eveniment. Noua oră se blochează întâi (atomic),
+	 * abia apoi se eliberează cea veche: dacă noua oră e ocupată, rezervarea rămâne neschimbată.
+	 *
+	 * @param int    $id    Rezervarea.
+	 * @param string $start Noua dată și oră, 'Y-m-d H:i'.
+	 * @return true|WP_Error
+	 */
+	public static function move( $id, $start ) {
+		$id = (int) $id;
+		$b  = self::get( $id );
+		if ( ! $b || ! $b['theme'] || 'publish' !== get_post_status( $id ) || 'cancelled' === $b['status'] ) {
+			return new WP_Error( 'stm_move', 'Rezervarea nu poate fi mutată (este anulată, ștearsă sau incompletă).' );
+		}
+		$start = trim( (string) $start );
+		$dt    = DateTime::createFromFormat( '!Y-m-d H:i', $start );
+		if ( ! $dt || $dt->format( 'Y-m-d H:i' ) !== $start ) {
+			return new WP_Error( 'stm_move', 'Data sau ora nu sunt valide; rezervarea nu a fost mutată.' );
+		}
+		if ( $start === $b['start'] ) {
+			return new WP_Error( 'stm_move', 'Rezervarea este deja la această dată și oră.' );
+		}
+		if ( ! self::lock( $b['theme'], $start, $id ) ) {
+			return new WP_Error( 'stm_move', 'Ora aleasă este deja ocupată de altă rezervare. Rezervarea nu a fost mutată.' );
+		}
+		if ( $b['start'] ) {
+			global $wpdb;
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->delete(
+				self::locks_table(),
+				array(
+					'theme_id'   => $b['theme'],
+					'slot_start' => $b['start'] . ':00',
+					'booking_id' => $id,
+				)
+			);
+		}
+		$old        = $b['start'];
+		$b['start'] = $start;
+		update_post_meta( $id, '_stm_start', $start );
+		update_post_meta( $id, '_stm_reminded', 0 );
+		wp_update_post(
+			array(
+				'ID'         => $id,
+				'post_title' => self::title( $b ),
+			)
+		);
+		do_action( 'stm_booking_moved', $id, $old );
+		return true;
+	}
+
+	/**
+	 * „Schimbă data” din Dashboard: listă cu orele libere ale evenimentului. HTML escapat.
+	 * Nu se folosește în lista de rezervări (acolo tabelul este deja într-un formular).
+	 */
+	public static function move_form( $b ) {
+		if ( empty( $b['start'] ) || empty( $b['theme'] ) || 'cancelled' === $b['status'] || ! current_user_can( 'edit_post', $b['id'] ) ) {
+			return '';
+		}
+		$edit = '<a href="' . esc_url( admin_url( 'post.php?post=' . (int) $b['id'] . '&action=edit' ) ) . '">pagina rezervării</a>';
+		$html = '<details class="stm-move"><summary>Schimbă data</summary>';
+		$free = self::free_slots( $b['theme'] );
+		if ( ! $free ) {
+			return $html . '<p class="stm-muted">Evenimentul nu mai are ore libere. Altă dată sau oră se poate pune din ' . $edit . '.</p></details>';
+		}
+		$html .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">'
+			. '<input type="hidden" name="action" value="stm_move"><input type="hidden" name="id" value="' . (int) $b['id'] . '">'
+			. '<input type="hidden" name="_wpnonce" value="' . esc_attr( wp_create_nonce( 'stm_move_' . $b['id'] ) ) . '">' . wp_referer_field( false )
+			. '<select name="slot" required><option value="">Alege noua dată și oră…</option>';
+		foreach ( $free as $date => $times ) {
+			$ts    = strtotime( $date . ' 12:00' );
+			$html .= '<optgroup label="' . esc_attr( STM_Helpers::date_label( $date ) ) . '">';
+			foreach ( $times as $time ) {
+				$html .= '<option value="' . esc_attr( $date . ' ' . $time ) . '">' . esc_html( wp_date( 'D j M', $ts ) . ' · ' . $time ) . '</option>';
+			}
+			$html .= '</optgroup>';
+		}
+		$html .= '</select>'
+			. '<label><input type="checkbox" name="notify" value="1" checked> Trimite clientului email cu noua dată</label>'
+			. '<button type="submit" class="button button-primary button-small">Mută rezervarea</button>'
+			. '<p class="stm-muted">Sunt afișate orele libere ale evenimentului. Altă oră sau alt eveniment: ' . $edit . '.</p>'
+			. '</form></details>';
+		return $html;
+	}
+
+	public static function handle_move() {
+		$id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
+		check_admin_referer( 'stm_move_' . $id );
+		if ( ! current_user_can( 'edit_post', $id ) ) {
+			wp_die( 'Nu ai drepturi pentru această acțiune.' );
+		}
+		$old  = self::get( $id );
+		$slot = isset( $_POST['slot'] ) ? sanitize_text_field( wp_unslash( $_POST['slot'] ) ) : '';
+		$res  = self::move( $id, $slot );
+		$back = remove_query_arg( array( 'stm_done', 'stm_moved' ), wp_get_referer() ? wp_get_referer() : admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_THEME . '&page=stm-dashboard' ) );
+		if ( is_wp_error( $res ) ) {
+			set_transient( 'stm_notice_' . get_current_user_id(), $res->get_error_message(), 60 );
+		} else {
+			if ( ! empty( $_POST['notify'] ) ) {
+				STM_Emails::moved( $id, $old['start'] );
+			}
+			$back = add_query_arg( 'stm_moved', 1, $back );
+		}
+		wp_safe_redirect( $back );
+		exit;
 	}
 
 	/* ---------- Admin edit screen (manual / phone bookings) ---------- */
@@ -360,6 +521,7 @@ class STM_Bookings {
 
 	public static function box( $post ) {
 		$b = self::get( $post->ID );
+		delete_post_meta( $post->ID, '_stm_new' ); // Rezervarea a fost deschisă: nu mai e „nouă”.
 		if ( ! $b['status'] ) {
 			$b['status'] = 'confirmed';
 			$b['people'] = 1;
@@ -567,6 +729,10 @@ class STM_Bookings {
 		if ( isset( $_GET['stm_done'] ) ) {
 			echo '<div class="notice notice-success is-dismissible"><p>Statusul rezervării a fost actualizat.</p></div>';
 		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( isset( $_GET['stm_moved'] ) ) {
+			echo '<div class="notice notice-success is-dismissible"><p>Rezervarea a fost mutată pe noua dată. Ora veche este din nou liberă.</p></div>';
+		}
 	}
 
 	/* ---------- Admin list ---------- */
@@ -591,6 +757,10 @@ class STM_Bookings {
 			case 'stm_start':
 				if ( $b['start'] ) {
 					echo '<strong>' . esc_html( wp_date( 'D, j M Y', strtotime( substr( $b['start'], 0, 10 ) . ' 12:00' ) ) ) . '</strong><br>' . esc_html( substr( $b['start'], 11, 5 ) );
+				}
+				if ( get_post_meta( $post_id, '_stm_new', true ) && 'publish' === get_post_status( $post_id ) ) {
+					echo ' <span class="stm-badge stm-badge--new">Nouă</span>';
+					delete_post_meta( $post_id, '_stm_new' ); // Văzută în listă: iese din numărul de pe meniu.
 				}
 				break;
 			case 'stm_contact':
@@ -635,7 +805,7 @@ class STM_Bookings {
 	public static function status_cell( $b ) {
 		$label = isset( STM_Helpers::STATUS_LABELS[ $b['status'] ] ) ? STM_Helpers::STATUS_LABELS[ $b['status'] ] : $b['status'];
 		$html  = '<span class="stm-badge stm-badge--' . esc_attr( $b['status'] ) . '">' . esc_html( $label ) . '</span>';
-		if ( ! current_user_can( 'edit_post', $b['id'] ) ) {
+		if ( ! current_user_can( 'edit_post', $b['id'] ) || 'trash' === get_post_status( $b['id'] ) ) {
 			return $html;
 		}
 		$url = function ( $to ) use ( $b ) {
@@ -685,7 +855,7 @@ class STM_Bookings {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only list filters.
 		$theme  = isset( $_GET['stm_theme'] ) ? absint( $_GET['stm_theme'] ) : 0;
 		$status = isset( $_GET['stm_status'] ) ? sanitize_key( $_GET['stm_status'] ) : '';
-		$when   = isset( $_GET['stm_when'] ) ? sanitize_key( $_GET['stm_when'] ) : 'upcoming';
+		$when   = isset( $_GET['stm_when'] ) ? sanitize_key( $_GET['stm_when'] ) : self::default_when();
 		// phpcs:enable
 		$themes = get_posts(
 			array(
@@ -709,6 +879,26 @@ class STM_Bookings {
 		echo '</select>';
 	}
 
+	/**
+	 * În coș se văd implicit toate rezervările șterse (și cele trecute), în rest cele viitoare.
+	 */
+	private static function default_when() {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only list filter.
+		return isset( $_GET['post_status'] ) && 'trash' === $_GET['post_status'] ? 'all' : 'upcoming';
+	}
+
+	/**
+	 * Tabul „Coș” apare mereu deasupra listei, chiar și când e gol.
+	 */
+	public static function views( $views ) {
+		$count = wp_count_posts( STM_Helpers::CPT_BOOKING );
+		$n     = isset( $count->trash ) ? (int) $count->trash : 0;
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only.
+		$current = isset( $_GET['post_status'] ) && 'trash' === $_GET['post_status'];
+		$views['trash'] = '<a href="' . esc_url( admin_url( 'edit.php?post_status=trash&post_type=' . STM_Helpers::CPT_BOOKING ) ) . '"' . ( $current ? ' class="current" aria-current="page"' : '' ) . '>Coș (rezervări șterse) <span class="count">(' . $n . ')</span></a>';
+		return $views;
+	}
+
 	public static function list_query( $query ) {
 		if ( ! is_admin() || ! $query->is_main_query() || STM_Helpers::CPT_BOOKING !== $query->get( 'post_type' ) ) {
 			return;
@@ -727,7 +917,7 @@ class STM_Bookings {
 				'value' => sanitize_key( $_GET['stm_status'] ),
 			);
 		}
-		$when = isset( $_GET['stm_when'] ) ? sanitize_key( $_GET['stm_when'] ) : 'upcoming';
+		$when = isset( $_GET['stm_when'] ) ? sanitize_key( $_GET['stm_when'] ) : self::default_when();
 		$past = 'past' === $when;
 		// phpcs:enable
 		if ( 'all' !== $when ) {
@@ -754,6 +944,9 @@ class STM_Bookings {
 			return $actions;
 		}
 		unset( $actions['inline hide-if-no-js'] );
+		if ( 'trash' === $post->post_status ) {
+			return $actions; // În coș rămân doar „Restaurează” și „Șterge definitiv”.
+		}
 		$status = get_post_meta( $post->ID, '_stm_status', true );
 		$url    = function ( $to ) use ( $post ) {
 			return wp_nonce_url( admin_url( 'admin-post.php?action=stm_status&id=' . $post->ID . '&to=' . $to ), 'stm_status_' . $post->ID );

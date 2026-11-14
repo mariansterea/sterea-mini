@@ -13,6 +13,70 @@ class STM_Dashboard {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_menu', array( __CLASS__, 'reorder' ), 100 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
+		add_action( 'admin_menu', array( __CLASS__, 'menu_badge' ), 101 );
+		add_action( 'stm_booking_created', array( __CLASS__, 'mark_new' ), 5 );
+		add_action( 'stm_booking_status', array( __CLASS__, 'on_status' ), 5, 2 );
+	}
+
+	/* ---------- Rezervări noi (bulina cu număr de pe meniu) ---------- */
+
+	/**
+	 * Rezervările venite de pe site sunt „noi” până când le vezi în Dashboard, în listă sau le deschizi.
+	 * Cele adăugate manual din admin nu se numără.
+	 */
+	public static function mark_new( $id ) {
+		if ( 'admin' !== get_post_meta( $id, '_stm_source', true ) ) {
+			update_post_meta( $id, '_stm_new', 1 );
+		}
+	}
+
+	public static function on_status( $id, $status ) {
+		if ( 'cancelled' === $status ) {
+			delete_post_meta( $id, '_stm_new' );
+		}
+	}
+
+	/**
+	 * ID-urile rezervărilor noi, nevăzute încă (fără cele din coș).
+	 */
+	public static function new_ids() {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT p.ID FROM {$wpdb->posts} p INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID WHERE m.meta_key = '_stm_new' AND p.post_type = %s AND p.post_status = 'publish' ORDER BY p.ID ASC",
+				STM_Helpers::CPT_BOOKING
+			)
+		);
+		return array_values( array_unique( array_map( 'intval', (array) $ids ) ) );
+	}
+
+	public static function menu_badge() {
+		global $menu, $submenu;
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			return;
+		}
+		$n = count( self::new_ids() );
+		if ( ! $n ) {
+			return;
+		}
+		$parent = 'edit.php?post_type=' . STM_Helpers::CPT_THEME;
+		$label  = 1 === $n ? '1 rezervare nouă' : $n . ' rezervări noi';
+		$badge  = ' <span class="awaiting-mod count-' . $n . '"><span class="pending-count" aria-hidden="true">' . $n . '</span><span class="screen-reader-text">' . esc_html( $label ) . '</span></span>';
+		foreach ( (array) $menu as $i => $item ) {
+			if ( isset( $item[2] ) && $parent === $item[2] ) {
+				$menu[ $i ][0] .= $badge; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+				break;
+			}
+		}
+		if ( ! empty( $submenu[ $parent ] ) ) {
+			foreach ( $submenu[ $parent ] as $i => $item ) {
+				if ( isset( $item[2] ) && 'edit.php?post_type=' . STM_Helpers::CPT_BOOKING === $item[2] ) {
+					$submenu[ $parent ][ $i ][0] .= $badge; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+					break;
+				}
+			}
+		}
 	}
 
 	public static function menu() {
@@ -166,6 +230,17 @@ class STM_Dashboard {
 		$s   = self::stats( $ids, $range[ $period ][0], $range[ $period ][1] );
 		$occ = $s['slots'] ? round( 100 * ( $s['confirmed'] + $s['pending'] ) / $s['slots'] ) : 0;
 		$base = admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_THEME );
+		// Rezervările noi: se arată aici o dată, apoi ies din numărul de pe meniu.
+		$new = array();
+		foreach ( self::new_ids() as $nid ) {
+			$nb = STM_Bookings::get( $nid );
+			if ( $nb ) {
+				$new[ $nid ] = $nb;
+			}
+			delete_post_meta( $nid, '_stm_new' );
+		}
+		$trash_count = wp_count_posts( STM_Helpers::CPT_BOOKING );
+		$trash       = isset( $trash_count->trash ) ? (int) $trash_count->trash : 0;
 		?>
 		<div class="wrap stm-dash">
 			<h1>Mini-ședințe</h1>
@@ -195,6 +270,17 @@ class STM_Dashboard {
 				return;
 			endif;
 			?>
+
+			<?php if ( $new ) : ?>
+				<div class="stm-panel stm-new">
+					<h2><?php echo 1 === count( $new ) ? '1 rezervare nouă' : count( $new ) . ' rezervări noi'; ?></h2>
+					<ul>
+					<?php foreach ( $new as $nb ) : ?>
+						<li><strong><?php echo esc_html( wp_date( 'D j M', strtotime( substr( $nb['start'], 0, 10 ) . ' 12:00' ) ) . ' ' . substr( $nb['start'], 11, 5 ) ); ?></strong> · <a href="<?php echo esc_url( get_edit_post_link( $nb['id'] ) ); ?>"><?php echo esc_html( $nb['name'] ); ?></a> · <?php echo esc_html( $nb['package'] ); ?><?php echo $nb['theme'] ? ' · <span class="stm-muted">' . esc_html( get_the_title( $nb['theme'] ) ) . '</span>' : ''; ?></li>
+					<?php endforeach; ?>
+					</ul>
+				</div>
+			<?php endif; ?>
 
 			<div class="stm-kpis">
 				<div class="stm-kpi stm-kpi--ok"><b><?php echo (int) $s['confirmed']; ?></b><span>Rezervări confirmate</span><small><?php echo (int) $s['people']; ?> persoane</small></div>
@@ -238,9 +324,9 @@ class STM_Dashboard {
 						<table class="widefat striped stm-dash-table">
 							<thead><tr><th>Când</th><th>Client</th><th>Pachet</th><th>Status</th></tr></thead>
 							<tbody>
-							<?php foreach ( array_slice( $s['upcoming'], 0, 12 ) as $b ) : ?>
+							<?php foreach ( array_slice( $s['upcoming'], 0, 30 ) as $b ) : ?>
 								<tr>
-									<td><strong><?php echo esc_html( wp_date( 'D j M', strtotime( substr( $b['start'], 0, 10 ) . ' 12:00' ) ) ); ?></strong> <?php echo esc_html( substr( $b['start'], 11, 5 ) ); ?></td>
+									<td><strong><?php echo esc_html( wp_date( 'D j M', strtotime( substr( $b['start'], 0, 10 ) . ' 12:00' ) ) ); ?></strong> <?php echo esc_html( substr( $b['start'], 11, 5 ) ); ?><?php echo isset( $new[ $b['id'] ] ) ? ' <span class="stm-badge stm-badge--new">Nouă</span>' : ''; ?><?php echo STM_Bookings::move_form( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
 									<td><a href="<?php echo esc_url( get_edit_post_link( $b['id'] ) ); ?>"><?php echo esc_html( $b['name'] ); ?></a><br><span class="stm-muted"><?php echo esc_html( $b['phone'] ); ?></span><?php echo STM_Helpers::booking_actions( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
 									<td><?php echo esc_html( $b['package'] ); ?><br><span class="stm-muted"><?php echo esc_html( STM_Helpers::money( STM_Helpers::amount( $b ) ) ); ?><?php echo ! empty( $b['coupon'] ) ? ' · ' . esc_html( $b['coupon'] ) : ''; ?></span></td>
 									<td><?php echo STM_Bookings::status_cell( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
@@ -250,6 +336,7 @@ class STM_Dashboard {
 						</table>
 						<p><a href="<?php echo esc_url( admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_BOOKING ) ); ?>">Toate rezervările →</a></p>
 					<?php endif; ?>
+					<p><a href="<?php echo esc_url( admin_url( 'edit.php?post_status=trash&post_type=' . STM_Helpers::CPT_BOOKING ) ); ?>">Coș: rezervări șterse (<?php echo (int) $trash; ?>) →</a></p>
 				</div>
 			</div>
 		</div>

@@ -174,6 +174,31 @@ class STM_Emails {
 		}
 	}
 
+	/**
+	 * Rezervare mutată de fotograf pe altă dată / oră (din Dashboard): clientul primește noua dată.
+	 *
+	 * @param int    $id        Rezervarea (deja mutată).
+	 * @param string $old_start Data și ora dinainte, 'Y-m-d H:i'.
+	 */
+	public static function moved( $id, $old_start ) {
+		$b = STM_Bookings::get( $id );
+		if ( ! $b || ! $b['start'] ) {
+			return false;
+		}
+		$was = $old_start ? '<p style="font-size:13px;color:#667085">Data inițială: ' . esc_html( STM_Helpers::date_label( substr( $old_start, 0, 10 ) ) . ', ora ' . substr( $old_start, 11, 5 ) ) . '.</p>' : '';
+		return self::send(
+			$b['email'],
+			'Rezervare reprogramată: ' . get_the_title( $b['theme'] ),
+			self::wrap(
+				'Rezervarea ta a fost reprogramată',
+				'<p>Bună, ' . esc_html( $b['name'] ) . '! Am mutat rezervarea ta. Noua dată și oră:</p>' . self::summary( $b ) . $was . self::info_block( $b )
+				. '<p><a href="' . esc_url( self::gcal_url( $b ) ) . '" style="display:inline-block;background:#1f2328;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">Adaugă în calendar</a></p>'
+				. '<p style="font-size:13px;color:#667085">Nu mai poți ajunge? <a href="' . esc_url( self::cancel_url( $b ) ) . '">Anulează rezervarea</a>, ca să eliberezi locul pentru altcineva.</p>'
+			),
+			self::admin_emails() ? self::admin_emails()[0] : ''
+		);
+	}
+
 	public static function reminders() {
 		if ( ! STM_Helpers::get( 'reminders' ) ) {
 			return;
