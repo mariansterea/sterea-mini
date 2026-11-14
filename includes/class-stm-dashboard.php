@@ -322,13 +322,15 @@ class STM_Dashboard {
 						<p class="stm-dash-empty">Nicio rezervare viitoare în perioada aleasă.</p>
 					<?php else : ?>
 						<table class="widefat striped stm-dash-table">
-							<thead><tr><th>Când</th><th>Client</th><th>Pachet</th><th>Status</th></tr></thead>
+							<thead><tr><th>Când</th><th>Client</th><th>Pachet</th><th>Rezervat la</th><th>Status</th></tr></thead>
 							<tbody>
 							<?php foreach ( array_slice( $s['upcoming'], 0, 30 ) as $b ) : ?>
 								<tr>
 									<td><strong><?php echo esc_html( wp_date( 'D j M', strtotime( substr( $b['start'], 0, 10 ) . ' 12:00' ) ) ); ?></strong> <?php echo esc_html( substr( $b['start'], 11, 5 ) ); ?><?php echo isset( $new[ $b['id'] ] ) ? ' <span class="stm-badge stm-badge--new">Nouă</span>' : ''; ?><?php echo STM_Bookings::move_form( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
 									<td><a href="<?php echo esc_url( get_edit_post_link( $b['id'] ) ); ?>"><?php echo esc_html( $b['name'] ); ?></a><br><span class="stm-muted"><?php echo esc_html( $b['phone'] ); ?></span><?php echo STM_Helpers::booking_actions( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
 									<td><?php echo esc_html( $b['package'] ); ?><br><span class="stm-muted"><?php echo esc_html( STM_Helpers::money( STM_Helpers::amount( $b ) ) ); ?><?php echo ! empty( $b['coupon'] ) ? ' · ' . esc_html( $b['coupon'] ) : ''; ?></span></td>
+									<?php $made = (int) get_post_time( 'U', true, $b['id'] ); ?>
+									<td class="stm-made"><?php if ( $made ) : ?><?php echo esc_html( wp_date( 'j M Y', $made ) ); ?><br><span class="stm-muted"><?php echo esc_html( wp_date( 'H:i', $made ) ); ?></span><?php else : ?>—<?php endif; ?></td>
 									<td><?php echo STM_Bookings::status_cell( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
 								</tr>
 							<?php endforeach; ?>
