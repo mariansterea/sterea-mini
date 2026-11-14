@@ -135,3 +135,4 @@
 	#wpcontent { margin-left: 0 !important; padding: 0 !important; }
 	.stm-day-table { max-width: none; font-size: 12pt; }
 }
+.stm-dash-table td.stm-made { white-space: nowrap; }
