@@ -438,32 +438,36 @@ class STM_Bookings {
 	 * „Schimbă data” din Dashboard: listă cu orele libere ale evenimentului. HTML escapat.
 	 * Nu se folosește în lista de rezervări (acolo tabelul este deja într-un formular).
 	 */
-	public static function move_form( $b ) {
+	public static function move_form( $b, $open = false ) {
 		if ( empty( $b['start'] ) || empty( $b['theme'] ) || 'cancelled' === $b['status'] || ! current_user_can( 'edit_post', $b['id'] ) ) {
 			return '';
 		}
 		$edit = '<a href="' . esc_url( admin_url( 'post.php?post=' . (int) $b['id'] . '&action=edit' ) ) . '">pagina rezervării</a>';
-		$html = '<details class="stm-move"><summary>Schimbă data</summary>';
+		$html = '<details class="stm-move"' . ( $open ? ' open' : '' ) . '><summary>Schimbă data</summary>';
 		$free = self::free_slots( $b['theme'] );
-		if ( ! $free ) {
-			return $html . '<p class="stm-muted">Evenimentul nu mai are ore libere. Altă dată sau oră se poate pune din ' . $edit . '.</p></details>';
-		}
 		$html .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">'
 			. '<input type="hidden" name="action" value="stm_move"><input type="hidden" name="id" value="' . (int) $b['id'] . '">'
-			. '<input type="hidden" name="_wpnonce" value="' . esc_attr( wp_create_nonce( 'stm_move_' . $b['id'] ) ) . '">' . wp_referer_field( false )
-			. '<select name="slot" required><option value="">Alege noua dată și oră…</option>';
-		foreach ( $free as $date => $times ) {
-			$ts    = strtotime( $date . ' 12:00' );
-			$html .= '<optgroup label="' . esc_attr( STM_Helpers::date_label( $date ) ) . '">';
-			foreach ( $times as $time ) {
-				$html .= '<option value="' . esc_attr( $date . ' ' . $time ) . '">' . esc_html( wp_date( 'D j M', $ts ) . ' · ' . $time ) . '</option>';
+			. '<input type="hidden" name="_wpnonce" value="' . esc_attr( wp_create_nonce( 'stm_move_' . $b['id'] ) ) . '">' . wp_referer_field( false );
+		if ( $free ) {
+			$html .= '<select name="slot"><option value="">Alege o oră liberă a evenimentului…</option>';
+			foreach ( $free as $date => $times ) {
+				$ts    = strtotime( $date . ' 12:00' );
+				$html .= '<optgroup label="' . esc_attr( STM_Helpers::date_label( $date ) ) . '">';
+				foreach ( $times as $time ) {
+					$html .= '<option value="' . esc_attr( $date . ' ' . $time ) . '">' . esc_html( wp_date( 'D j M', $ts ) . ' · ' . $time ) . '</option>';
+				}
+				$html .= '</optgroup>';
 			}
-			$html .= '</optgroup>';
+			$html .= '</select>';
+		} else {
+			$html .= '<p class="stm-muted">Evenimentul nu mai are ore libere în program; scrie data și ora mai jos.</p>';
 		}
-		$html .= '</select>'
+		// Orice dată și oră, scrise de mână (și în afara programului): are prioritate față de lista de mai sus.
+		$html .= '<span class="stm-move-manual">' . ( $free ? 'sau altă dată: ' : '' )
+			. '<input type="date" name="date" aria-label="Data nouă"> <input type="time" name="time" aria-label="Ora nouă"></span>'
 			. '<label><input type="checkbox" name="notify" value="1" checked> Trimite clientului email cu noua dată</label>'
 			. '<button type="submit" class="button button-primary button-small">Mută rezervarea</button>'
-			. '<p class="stm-muted">Sunt afișate orele libere ale evenimentului. Altă oră sau alt eveniment: ' . $edit . '.</p>'
+			. '<p class="stm-muted">Data scrisă de mână poate fi oricare, și în afara programului. Alt eveniment: ' . $edit . '.</p>'
 			. '</form></details>';
 		return $html;
 	}
@@ -476,8 +480,14 @@ class STM_Bookings {
 		}
 		$old  = self::get( $id );
 		$slot = isset( $_POST['slot'] ) ? sanitize_text_field( wp_unslash( $_POST['slot'] ) ) : '';
+		$date = isset( $_POST['date'] ) ? sanitize_text_field( wp_unslash( $_POST['date'] ) ) : '';
+		$time = isset( $_POST['time'] ) ? sanitize_text_field( wp_unslash( $_POST['time'] ) ) : '';
+		if ( '' !== $date || '' !== $time ) {
+			// Data scrisă de mână are prioritate; dacă lipsește ora sau data, move() o respinge ca nevalidă.
+			$slot = trim( $date . ' ' . substr( $time, 0, 5 ) );
+		}
 		$res  = self::move( $id, $slot );
-		$back = remove_query_arg( array( 'stm_done', 'stm_moved' ), wp_get_referer() ? wp_get_referer() : admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_THEME . '&page=stm-dashboard' ) );
+		$back = remove_query_arg( array( 'stm_done', 'stm_moved', 'stm_move' ),wp_get_referer() ? wp_get_referer() : admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_THEME . '&page=stm-dashboard' ) );
 		if ( is_wp_error( $res ) ) {
 			set_transient( 'stm_notice_' . get_current_user_id(), $res->get_error_message(), 60 );
 		} else {
@@ -953,6 +963,10 @@ class STM_Bookings {
 		};
 		if ( 'pending' === $status ) {
 			$actions['stm_confirm'] = '<a href="' . esc_url( $url( 'confirmed' ) ) . '">Confirmă</a>';
+		}
+		if ( 'cancelled' !== $status && 'publish' === $post->post_status ) {
+			$move                = admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_THEME . '&page=stm-dashboard&stm_move=' . $post->ID );
+			$actions['stm_move'] = '<a href="' . esc_url( $move ) . '">Schimbă data</a>';
 		}
 		if ( 'cancelled' !== $status ) {
 			$actions['stm_cancel'] = '<a href="' . esc_url( $url( 'cancelled' ) ) . '" onclick="return confirm(\'Anulezi rezervarea? Clientul primește un email.\')">Anulează</a>';

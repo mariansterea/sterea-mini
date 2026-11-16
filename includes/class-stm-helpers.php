@@ -82,6 +82,7 @@ class STM_Helpers {
 
 	public static function theme_defaults() {
 		return array(
+			'short'     => '', // nume scurt, pentru titlul din Google Calendar
 			'location'  => 'Curtea Lipovenesc',
 			'address'   => '',
 			'map_url'   => '',
@@ -579,6 +580,29 @@ class STM_Helpers {
 	}
 
 	/**
+	 * Numele scurt al evenimentului (ex. „Ședință Crăciun”), pentru titlul din Google Calendar.
+	 * Dacă nu e completat în eveniment, se ia începutul titlului („Ședințe foto de Crăciun 2026 la Ferma…” → până la „la”).
+	 */
+	public static function theme_short( $theme_id ) {
+		$meta  = self::theme_meta( $theme_id );
+		$short = trim( (string) $meta['short'] );
+		if ( '' !== $short ) {
+			return $short;
+		}
+		$title = trim( wp_specialchars_decode( get_the_title( $theme_id ), ENT_QUOTES ) );
+		$parts = preg_split( '/\s+(?:la|–|—|-|\|)\s+/u', $title );
+		return ( is_array( $parts ) && '' !== trim( $parts[0] ) ) ? trim( $parts[0] ) : $title;
+	}
+
+	/**
+	 * Titlul ședinței în calendarul fotografului: ora, numele clientului, evenimentul pe scurt.
+	 * Ex.: „10:30 Maria Popescu – Ședință Crăciun”.
+	 */
+	public static function cal_title( $b ) {
+		return trim( substr( (string) $b['start'], 11, 5 ) . ' ' . self::nice_name( $b['name'] ) ) . ' – ' . self::theme_short( $b['theme'] );
+	}
+
+	/**
 	 * „Adaugă în Google Calendar” pentru fotograf: evenimentul vine completat cu toate datele clientului.
 	 * Merge pe calculator și pe telefon (se deschide Google Calendar, apeși Salvează).
 	 */
@@ -618,7 +642,7 @@ class STM_Helpers {
 		}
 		$args = array(
 			'action'   => 'TEMPLATE',
-			'text'     => 'Mini-ședință foto: ' . wp_specialchars_decode( get_the_title( $b['theme'] ), ENT_QUOTES ),
+			'text'     => self::cal_title( $b ),
 			'dates'    => $start->setTimezone( $utc )->format( 'Ymd\THis\Z' ) . '/' . $end->setTimezone( $utc )->format( 'Ymd\THis\Z' ),
 			'details'  => implode( "\n", $lines ),
 			'location' => self::place( $theme ),

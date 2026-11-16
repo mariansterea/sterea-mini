@@ -185,7 +185,7 @@ class STM_GCal {
 		$lines[] = 'Rezervarea în WordPress: ' . admin_url( 'post.php?post=' . $b['id'] . '&action=edit' );
 
 		return array(
-			'summary'            => trim( $b['name'] ) . ' – ' . $b['package'] . ( 'pending' === $b['status'] ? ' (în așteptare)' : '' ),
+			'summary'            => STM_Helpers::cal_title( $b ) . ( 'pending' === $b['status'] ? ' (în așteptare)' : '' ),
 			'description'        => implode( "\n", $lines ),
 			'location'           => trim( $theme['location'] . ( $theme['address'] ? ', ' . $theme['address'] : '' ), ', ' ),
 			'start'              => array( 'dateTime' => $start->format( 'Y-m-d\TH:i:s' ), 'timeZone' => $tz ),

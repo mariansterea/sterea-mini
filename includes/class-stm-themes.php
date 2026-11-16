@@ -175,6 +175,11 @@ class STM_Themes {
 		?>
 		<table class="form-table">
 			<tr>
+				<th><label for="stm-short">Nume scurt (în Calendar)</label></th>
+				<td><input type="text" id="stm-short" class="regular-text" name="stm[short]" value="<?php echo esc_attr( $m['short'] ); ?>" placeholder="ex. Ședință Crăciun">
+				<p class="description">Apare în titlul din Google Calendar: „10:30 Maria Popescu – Ședință Crăciun”. Gol = începutul titlului evenimentului.</p></td>
+			</tr>
+			<tr>
 				<th><label for="stm-location">Locație</label></th>
 				<td><input type="text" id="stm-location" class="regular-text" name="stm[location]" value="<?php echo esc_attr( $m['location'] ); ?>"></td>
 			</tr>
@@ -225,6 +230,7 @@ class STM_Themes {
 		$in = isset( $_POST['stm'] ) && is_array( $_POST['stm'] ) ? wp_unslash( $_POST['stm'] ) : array();
 
 		$data = array(
+			'short'      => sanitize_text_field( isset( $in['short'] ) ? $in['short'] : '' ),
 			'location'   => sanitize_text_field( isset( $in['location'] ) ? $in['location'] : '' ),
 			'address'    => sanitize_text_field( isset( $in['address'] ) ? $in['address'] : '' ),
 			'map_url'    => esc_url_raw( isset( $in['map_url'] ) ? $in['map_url'] : '' ),

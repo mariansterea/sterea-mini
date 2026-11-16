@@ -126,6 +126,7 @@ class STM_Dashboard {
 			'revenue'   => 0,
 			'days'      => array(), // theme|date => [theme, date, slots, booked]
 			'upcoming'  => array(),
+			'past'      => array(), // rezervări neanulate a căror oră a trecut (cele mai recente primele)
 			'clients'   => array(),
 		);
 		$now = STM_Helpers::now()->format( 'Y-m-d H:i' );
@@ -194,11 +195,30 @@ class STM_Dashboard {
 			$out['clients'][ strtolower( $b['email'] ) ] = true;
 			if ( $b['start'] >= $now ) {
 				$out['upcoming'][ $b['start'] . '|' . $id ] = $b;
+			} else {
+				$out['past'][ $b['start'] . '|' . $id ] = $b;
 			}
 		}
 		ksort( $out['upcoming'] );
+		krsort( $out['past'] );
 		ksort( $out['days'] );
 		return $out;
+	}
+
+	/**
+	 * Un rând din tabelele de rezervări ale Dashboard-ului (viitoare / trecute / cea de mutat).
+	 */
+	private static function row( $b, $is_new = false, $open = false ) {
+		$made = (int) get_post_time( 'U', true, $b['id'] );
+		?>
+		<tr>
+			<td><strong><?php echo esc_html( wp_date( 'D j M', strtotime( substr( $b['start'], 0, 10 ) . ' 12:00' ) ) ); ?></strong> <?php echo esc_html( substr( $b['start'], 11, 5 ) ); ?><?php echo $is_new ? ' <span class="stm-badge stm-badge--new">Nouă</span>' : ''; ?><?php echo STM_Bookings::move_form( $b, $open ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
+			<td><a href="<?php echo esc_url( get_edit_post_link( $b['id'] ) ); ?>"><?php echo esc_html( $b['name'] ); ?></a><br><span class="stm-muted"><?php echo esc_html( $b['phone'] ); ?></span><?php echo STM_Helpers::booking_actions( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
+			<td><?php echo esc_html( $b['package'] ); ?><br><span class="stm-muted"><?php echo esc_html( STM_Helpers::money( STM_Helpers::amount( $b ) ) ); ?><?php echo ! empty( $b['coupon'] ) ? ' · ' . esc_html( $b['coupon'] ) : ''; ?></span></td>
+			<td class="stm-made"><?php if ( $made ) : ?><?php echo esc_html( wp_date( 'j M Y', $made ) ); ?><br><span class="stm-muted"><?php echo esc_html( wp_date( 'H:i', $made ) ); ?></span><?php else : ?>—<?php endif; ?></td>
+			<td><?php echo STM_Bookings::status_cell( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
+		</tr>
+		<?php
 	}
 
 	public static function render() {
@@ -271,6 +291,20 @@ class STM_Dashboard {
 			endif;
 			?>
 
+			<?php
+			// „Schimbă data” din lista de rezervări: rezervarea aleasă, cu formularul deschis.
+			$move = isset( $_GET['stm_move'] ) ? STM_Bookings::get( absint( $_GET['stm_move'] ) ) : null; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			if ( $move && ! empty( $move['start'] ) && 'cancelled' !== $move['status'] && 'publish' === get_post_status( $move['id'] ) ) :
+				?>
+				<div class="stm-panel">
+					<h2>Schimbă data rezervării</h2>
+					<table class="widefat striped stm-dash-table">
+						<thead><tr><th>Când</th><th>Client</th><th>Pachet</th><th>Rezervat la</th><th>Status</th></tr></thead>
+						<tbody><?php self::row( $move, false, true ); ?></tbody>
+					</table>
+				</div>
+			<?php endif; ?>
+
 			<?php if ( $new ) : ?>
 				<div class="stm-panel stm-new">
 					<h2><?php echo 1 === count( $new ) ? '1 rezervare nouă' : count( $new ) . ' rezervări noi'; ?></h2>
@@ -324,19 +358,30 @@ class STM_Dashboard {
 						<table class="widefat striped stm-dash-table">
 							<thead><tr><th>Când</th><th>Client</th><th>Pachet</th><th>Rezervat la</th><th>Status</th></tr></thead>
 							<tbody>
-							<?php foreach ( array_slice( $s['upcoming'], 0, 30 ) as $b ) : ?>
-								<tr>
-									<td><strong><?php echo esc_html( wp_date( 'D j M', strtotime( substr( $b['start'], 0, 10 ) . ' 12:00' ) ) ); ?></strong> <?php echo esc_html( substr( $b['start'], 11, 5 ) ); ?><?php echo isset( $new[ $b['id'] ] ) ? ' <span class="stm-badge stm-badge--new">Nouă</span>' : ''; ?><?php echo STM_Bookings::move_form( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
-									<td><a href="<?php echo esc_url( get_edit_post_link( $b['id'] ) ); ?>"><?php echo esc_html( $b['name'] ); ?></a><br><span class="stm-muted"><?php echo esc_html( $b['phone'] ); ?></span><?php echo STM_Helpers::booking_actions( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
-									<td><?php echo esc_html( $b['package'] ); ?><br><span class="stm-muted"><?php echo esc_html( STM_Helpers::money( STM_Helpers::amount( $b ) ) ); ?><?php echo ! empty( $b['coupon'] ) ? ' · ' . esc_html( $b['coupon'] ) : ''; ?></span></td>
-									<?php $made = (int) get_post_time( 'U', true, $b['id'] ); ?>
-									<td class="stm-made"><?php if ( $made ) : ?><?php echo esc_html( wp_date( 'j M Y', $made ) ); ?><br><span class="stm-muted"><?php echo esc_html( wp_date( 'H:i', $made ) ); ?></span><?php else : ?>—<?php endif; ?></td>
-									<td><?php echo STM_Bookings::status_cell( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
-								</tr>
-							<?php endforeach; ?>
+							<?php
+							foreach ( array_slice( $s['upcoming'], 0, 30 ) as $b ) {
+								self::row( $b, isset( $new[ $b['id'] ] ) );
+							}
+							?>
 							</tbody>
 						</table>
 						<p><a href="<?php echo esc_url( admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_BOOKING ) ); ?>">Toate rezervările →</a></p>
+					<?php endif; ?>
+					<?php if ( $s['past'] ) : ?>
+						<h2>Rezervări trecute</h2>
+						<p class="description">Ședința nu s-a ținut? „Schimbă data” o mută pe altă zi (și în Google Calendar).</p>
+						<table class="widefat striped stm-dash-table">
+							<thead><tr><th>Când</th><th>Client</th><th>Pachet</th><th>Rezervat la</th><th>Status</th></tr></thead>
+							<tbody>
+							<?php
+							foreach ( array_slice( $s['past'], 0, 30 ) as $b ) {
+								self::row( $b );
+							}
+							?>
+							</tbody>
+						</table>
+					<?php elseif ( 'past' !== $period ) : ?>
+						<p><a href="<?php echo esc_url( add_query_arg( array( 'page' => 'stm-dashboard', 'stm_period' => 'past', 'stm_theme' => $theme ? $theme : false ), $base ) ); ?>">Rezervări trecute (reprogramare) →</a></p>
 					<?php endif; ?>
 					<p><a href="<?php echo esc_url( admin_url( 'edit.php?post_status=trash&post_type=' . STM_Helpers::CPT_BOOKING ) ); ?>">Coș: rezervări șterse (<?php echo (int) $trash; ?>) →</a></p>
 				</div>
