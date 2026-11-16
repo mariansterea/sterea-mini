@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.9.1
+Stable tag: 1.9.2
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -56,6 +56,11 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.9.2 (2026-11-16) =
+* Reprogramare manuală, și pentru ședințe trecute: în Dashboard apare lista „Rezervări trecute” (perioada „Trecut” sau linkul „Rezervări trecute (reprogramare)”), cu „Schimbă data”. În lista „Rezervări”, fiecare rând are acțiunea „Schimbă data”.
+* „Schimbă data” acceptă acum și o dată și oră scrise de mână (orice zi, și în afara programului evenimentului), pe lângă orele libere din program.
+* Google Calendar: titlul ședinței este „ora Nume client – nume scurt eveniment” (ex. „10:30 Maria Popescu – Ședință Crăciun”), atât la sincronizarea automată, cât și la butonul „Adaugă în Google Calendar”. Numele scurt se scrie în eveniment, la „Nume scurt (în Calendar)”.
 
 = 1.9.1 (2026-11-14) =
 * Dashboard: coloană nouă „Rezervat la” în „Următoarele rezervări”, cu data și ora la care clientul a făcut rezervarea.
