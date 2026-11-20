@@ -54,11 +54,11 @@
 .stm-avail-range-body { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 10px; padding: 12px; background: #f6f7f7; border: 1px solid #dcdcde; border-radius: 4px; }
 .stm-avail-wd label { margin-right: 6px; white-space: nowrap; }
 .stm-cal-wrap { display: flex; flex-wrap: wrap; gap: 18px; }
-.stm-cal { width: 330px; }
+.stm-cal { width: 420px; max-width: 100%; flex: 0 0 auto; }
 .stm-cal-title { font-weight: 600; text-transform: capitalize; margin: 0 0 6px; }
-.stm-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.stm-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .stm-cal-wd { text-align: center; font-size: 11px; color: #787c82; text-transform: uppercase; }
-.stm-cal-day { position: relative; min-height: 52px; border: 1px solid #dcdcde; border-radius: 6px; background: #fff; padding: 4px 5px; cursor: pointer; font-size: 12px; user-select: none; }
+.stm-cal-day { position: relative; box-sizing: border-box; min-width: 0; min-height: 52px; border: 1px solid #dcdcde; border-radius: 6px; background: #fff; padding: 4px 5px; cursor: pointer; font-size: 12px; user-select: none; }
 .stm-cal-day:hover { border-color: #2271b1; }
 .stm-cal-day.is-other { visibility: hidden; }
 .stm-cal-day.is-past { background: #f6f7f7; color: #a7aaad; cursor: default; }
@@ -69,7 +69,7 @@
 .stm-cal-day.is-on.is-off { background: #fdeeee; border-color: #c88; }
 .stm-cal-num { font-weight: 700; display: block; }
 .stm-cal-hours { display: block; margin-top: 2px; border: 0; background: transparent; padding: 0; font-size: 11px; color: inherit; cursor: pointer; text-decoration: underline dotted; }
-.stm-cal-badge { position: absolute; right: 3px; top: 3px; font-size: 10px; background: #1f2328; color: #fff; border-radius: 8px; padding: 0 5px; line-height: 15px; }
+.stm-cal-badge { display: block; margin-top: 3px; font-size: 10px; background: #1f2328; color: #fff; border-radius: 8px; padding: 0 4px; line-height: 15px; text-align: center; white-space: nowrap; }
 .stm-cal-day.is-taken { border-width: 2px; }
 .stm-cal-off { display: block; font-size: 10px; margin-top: 2px; }
 .stm-cal-day.is-editing { z-index: 2; }
