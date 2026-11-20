@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.9.2
+Stable tag: 1.9.3
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -56,6 +56,9 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.9.3 (2026-11-20) =
+* Calendarul din eveniment: lunile nu se mai suprapun, iar eticheta „N rez.” stă sub ore, nu peste numărul zilei.
 
 = 1.9.2 (2026-11-16) =
 * Reprogramare manuală, și pentru ședințe trecute: în Dashboard apare lista „Rezervări trecute” (perioada „Trecut” sau linkul „Rezervări trecute (reprogramare)”), cu „Schimbă data”. În lista „Rezervări”, fiecare rând are acțiunea „Schimbă data”.
