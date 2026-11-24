@@ -11,6 +11,7 @@ class STM_Dashboard {
 
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
+		add_action( 'admin_init', array( __CLASS__, 'canonical' ), 1 );
 		add_action( 'admin_menu', array( __CLASS__, 'reorder' ), 100 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
 		add_action( 'admin_menu', array( __CLASS__, 'menu_badge' ), 101 );
@@ -81,6 +82,36 @@ class STM_Dashboard {
 
 	public static function menu() {
 		add_submenu_page( 'edit.php?post_type=' . STM_Helpers::CPT_THEME, 'Mini-ședințe – Dashboard', 'Dashboard', 'edit_posts', 'stm-dashboard', array( __CLASS__, 'render' ) );
+	}
+
+	/**
+	 * Meniul principal trimite la admin.php?page=stm-dashboard. Acolo alte pluginuri (ex. LiteSpeed Cache,
+	 * la „Purge All”) își construiesc linkurile cu post_type=post, iar WordPress răspunde „Cannot load stm-dashboard”.
+	 * Paginile pluginului se deschid mereu la adresa lor corectă: edit.php?post_type=stm_theme&page=…
+	 */
+	public static function canonical() {
+		global $pagenow;
+		if ( 'admin.php' !== $pagenow || empty( $_GET['page'] ) || wp_doing_ajax() ) { // phpcs:ignore WordPress.Security.NonceVerification
+			return;
+		}
+		if ( isset( $_SERVER['REQUEST_METHOD'] ) && 'GET' !== $_SERVER['REQUEST_METHOD'] ) {
+			return;
+		}
+		$page = sanitize_key( wp_unslash( $_GET['page'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+		if ( ! in_array( $page, array( 'stm-dashboard', 'stm-schedule', 'stm-settings' ), true ) ) {
+			return;
+		}
+		$args = array(
+			'post_type' => STM_Helpers::CPT_THEME,
+			'page'      => $page,
+		);
+		foreach ( $_GET as $key => $value ) { // phpcs:ignore WordPress.Security.NonceVerification
+			if ( is_string( $key ) && 0 === strpos( $key, 'stm_' ) && is_scalar( $value ) ) {
+				$args[ sanitize_key( $key ) ] = rawurlencode( sanitize_text_field( wp_unslash( (string) $value ) ) );
+			}
+		}
+		wp_safe_redirect( add_query_arg( $args, admin_url( 'edit.php' ) ) );
+		exit;
 	}
 
 	/**
