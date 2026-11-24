@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.9.3
+Stable tag: 1.9.4
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -56,6 +56,9 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.9.4 (2026-11-24) =
+* Reparat „Cannot load stm-dashboard”: după „Purge All” (LiteSpeed Cache) din Dashboard, pagina nu se mai încărca. Dashboard, Programul zilei și Setări se deschid acum mereu la adresa lor corectă.
 
 = 1.9.3 (2026-11-20) =
 * Calendarul din eveniment: lunile nu se mai suprapun, iar eticheta „N rez.” stă sub ore, nu peste numărul zilei.
