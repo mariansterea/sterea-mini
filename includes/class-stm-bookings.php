@@ -39,6 +39,17 @@ class STM_Bookings {
 		add_filter( 'wp_untrash_post_status', array( __CLASS__, 'untrash_status' ), 10, 3 );
 		add_filter( 'views_edit-' . STM_Helpers::CPT_BOOKING, array( __CLASS__, 'views' ) );
 		add_action( 'admin_post_stm_move', array( __CLASS__, 'handle_move' ) );
+		add_filter( 'post_class', array( __CLASS__, 'row_class' ), 10, 3 );
+	}
+
+	/**
+	 * Rândurile rezervărilor anulate sunt colorate în lista din admin.
+	 */
+	public static function row_class( $classes, $css_class, $post_id ) {
+		if ( is_admin() && get_post_type( $post_id ) === STM_Helpers::CPT_BOOKING && 'cancelled' === get_post_meta( $post_id, '_stm_status', true ) ) {
+			$classes[] = 'stm-row-cancelled';
+		}
+		return $classes;
 	}
 
 	/* ---------- Setup ---------- */
@@ -517,7 +528,14 @@ class STM_Bookings {
 			return;
 		}
 		if ( 'cancelled' === $b['status'] ) {
-			echo '<p class="description">Rezervarea este anulată.</p>';
+			$by = (string) get_post_meta( $post->ID, '_stm_cancelled_by', true );
+			$at = (int) get_post_meta( $post->ID, '_stm_cancelled_at', true );
+			echo '<p><span class="stm-badge stm-badge--cancelled">Anulată</span> ' . esc_html( ( 'client' === $by ? 'de client' : ( 'admin' === $by ? 'din admin' : '' ) ) . ( $at ? ', ' . wp_date( 'j M Y, H:i', $at ) : '' ) ) . '</p>';
+			delete_post_meta( $post->ID, '_stm_cancel_new' ); // Anularea a fost văzută.
+			if ( STM_Helpers::wa_cancel_url( $b ) ) {
+				echo STM_Helpers::booking_actions( $b, 'big' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție.
+				echo '<p class="stm-wa-label">Mesajul pe WhatsApp:</p><div class="stm-wa-preview">' . esc_html( STM_Helpers::wa_cancel_message( $b ) ) . '</div>';
+			}
 			return;
 		}
 		echo STM_Helpers::booking_actions( $b, 'big' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție.
@@ -772,6 +790,10 @@ class STM_Bookings {
 					echo ' <span class="stm-badge stm-badge--new">Nouă</span>';
 					delete_post_meta( $post_id, '_stm_new' ); // Văzută în listă: iese din numărul de pe meniu.
 				}
+				if ( get_post_meta( $post_id, '_stm_cancel_new', true ) && 'publish' === get_post_status( $post_id ) ) {
+					echo ' <span class="stm-badge stm-badge--cancelled">Anulare nouă</span>';
+					delete_post_meta( $post_id, '_stm_cancel_new' );
+				}
 				break;
 			case 'stm_contact':
 				if ( $b['phone'] ) {
@@ -802,6 +824,13 @@ class STM_Bookings {
 				break;
 			case 'stm_status':
 				echo self::status_cell( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție.
+				if ( 'cancelled' === $b['status'] ) {
+					$by = (string) get_post_meta( $post_id, '_stm_cancelled_by', true );
+					$at = (int) get_post_meta( $post_id, '_stm_cancelled_at', true );
+					if ( $by || $at ) {
+						echo '<span class="stm-muted">' . esc_html( trim( ( 'client' === $by ? 'de client' : ( 'admin' === $by ? 'din admin' : '' ) ) . ( $at ? ' · ' . wp_date( 'j M, H:i', $at ) : '' ), ' ·' ) ) . '</span>';
+					}
+				}
 				break;
 			case 'stm_source':
 				echo esc_html( 'admin' === $b['source'] ? 'Adăugată manual' : $b['source'] );

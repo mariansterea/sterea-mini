@@ -699,18 +699,52 @@ class STM_Helpers {
 	}
 
 	/**
+	 * Mesajul pentru WhatsApp către un client a cărui rezervare a fost anulată.
+	 */
+	public static function wa_cancel_message( $b ) {
+		$name  = self::nice_name( $b['name'] );
+		$first = $name ? preg_split( '/\s+/', $name )[0] : '';
+		$date  = self::date_label( substr( $b['start'], 0, 10 ) );
+		$date  = mb_strtolower( mb_substr( $date, 0, 1 ) ) . mb_substr( $date, 1 );
+		$event = wp_specialchars_decode( get_the_title( $b['theme'] ), ENT_QUOTES );
+		$lines = array(
+			'Bună' . ( $first ? ', ' . $first : '' ) . '!',
+			'',
+			'Am primit anularea rezervării pentru ' . $event . ', ' . $date . ', ora ' . substr( $b['start'], 11, 5 ) . '. Ora a fost eliberată.',
+			'',
+			'Dacă vrei altă zi sau altă oră, scrie-mi aici și găsim un loc liber.',
+			'',
+			self::mail_from_name(),
+		);
+		return trim( implode( "\n", $lines ) );
+	}
+
+	public static function wa_cancel_url( $b ) {
+		$num = self::wa_number( isset( $b['phone'] ) ? $b['phone'] : '' );
+		return $num ? 'https://wa.me/' . $num . '?text=' . rawurlencode( self::wa_cancel_message( $b ) ) : '';
+	}
+
+	/**
 	 * Butoanele „Adaugă în calendar” și „Confirmă pe WhatsApp” din admin. HTML escapat.
 	 *
 	 * @param array  $b    Rezervarea.
 	 * @param string $size 'small' (liste) sau 'big' (pagina rezervării).
 	 */
 	public static function booking_actions( $b, $size = 'small' ) {
-		if ( empty( $b['start'] ) || 'cancelled' === $b['status'] ) {
+		if ( empty( $b['start'] ) ) {
 			return '';
 		}
 		$cal  = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1Zm13 8H4v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9ZM8 13h3v3H8v-3Z"/></svg>';
 		$wa   = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z"/></svg>';
 		$big  = 'big' === $size;
+		if ( 'cancelled' === $b['status'] ) {
+			// Rezervare anulată: doar WhatsApp, cu mesajul despre anulare.
+			$wurl = self::wa_cancel_url( $b );
+			if ( ! $wurl ) {
+				return '';
+			}
+			return '<div class="stm-acts' . ( $big ? ' stm-acts--big' : '' ) . '"><a class="stm-act stm-act--wa" href="' . self::text_href( $wurl ) . '" target="_blank" rel="noopener" title="Se deschide WhatsApp cu mesajul despre anulare gata scris; apeși Trimite">' . $wa . '<span>' . ( $big ? 'Scrie-i pe WhatsApp despre anulare' : 'WhatsApp' ) . '</span></a></div>';
+		}
 		$html = '<a class="stm-act stm-act--cal" href="' . self::text_href( self::admin_gcal_url( $b ) ) . '" target="_blank" rel="noopener" title="Se deschide Google Calendar cu ședința completată; apeși Salvează">' . $cal . '<span>' . ( $big ? 'Adaugă în Google Calendar' : 'Calendar' ) . '</span></a>';
 		$wurl = self::wa_url( $b );
 		if ( $wurl ) {

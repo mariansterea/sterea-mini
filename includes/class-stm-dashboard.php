@@ -31,21 +31,37 @@ class STM_Dashboard {
 		}
 	}
 
+	/**
+	 * La anulare se reține când și de cine (clientul, din linkul din email, sau fotograful, din admin).
+	 * Anulările făcute de client sunt „nevăzute” până când apar în Dashboard sau în lista de rezervări.
+	 */
 	public static function on_status( $id, $status ) {
 		if ( 'cancelled' === $status ) {
+			$by_client = (bool) did_action( 'stm_client_cancelled' );
 			delete_post_meta( $id, '_stm_new' );
+			update_post_meta( $id, '_stm_cancelled_at', time() );
+			update_post_meta( $id, '_stm_cancelled_by', $by_client ? 'client' : 'admin' );
+			if ( $by_client ) {
+				update_post_meta( $id, '_stm_cancel_new', 1 );
+			}
+		} else {
+			delete_post_meta( $id, '_stm_cancelled_at' );
+			delete_post_meta( $id, '_stm_cancelled_by' );
+			delete_post_meta( $id, '_stm_cancel_new' );
 		}
 	}
 
 	/**
 	 * ID-urile rezervărilor noi, nevăzute încă (fără cele din coș).
+	 * Cu '_stm_cancel_new': anulările făcute de clienți, nevăzute încă.
 	 */
-	public static function new_ids() {
+	public static function new_ids( $key = '_stm_new' ) {
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$ids = $wpdb->get_col(
 			$wpdb->prepare(
-				"SELECT p.ID FROM {$wpdb->posts} p INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID WHERE m.meta_key = '_stm_new' AND p.post_type = %s AND p.post_status = 'publish' ORDER BY p.ID ASC",
+				"SELECT p.ID FROM {$wpdb->posts} p INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID WHERE m.meta_key = %s AND p.post_type = %s AND p.post_status = 'publish' ORDER BY p.ID ASC",
+				$key,
 				STM_Helpers::CPT_BOOKING
 			)
 		);
@@ -57,12 +73,21 @@ class STM_Dashboard {
 		if ( ! current_user_can( 'edit_posts' ) ) {
 			return;
 		}
-		$n = count( self::new_ids() );
+		$fresh = count( self::new_ids() );
+		$gone  = count( self::new_ids( '_stm_cancel_new' ) );
+		$n     = $fresh + $gone;
 		if ( ! $n ) {
 			return;
 		}
 		$parent = 'edit.php?post_type=' . STM_Helpers::CPT_THEME;
-		$label  = 1 === $n ? '1 rezervare nouă' : $n . ' rezervări noi';
+		$parts  = array();
+		if ( $fresh ) {
+			$parts[] = 1 === $fresh ? '1 rezervare nouă' : $fresh . ' rezervări noi';
+		}
+		if ( $gone ) {
+			$parts[] = 1 === $gone ? '1 anulare nouă' : $gone . ' anulări noi';
+		}
+		$label = implode( ', ', $parts );
 		$badge  = ' <span class="awaiting-mod count-' . $n . '"><span class="pending-count" aria-hidden="true">' . $n . '</span><span class="screen-reader-text">' . esc_html( $label ) . '</span></span>';
 		foreach ( (array) $menu as $i => $item ) {
 			if ( isset( $item[2] ) && $parent === $item[2] ) {
@@ -153,6 +178,7 @@ class STM_Dashboard {
 			'confirmed' => 0,
 			'pending'   => 0,
 			'cancelled' => 0,
+			'gone'      => array(), // rezervările anulate din perioadă (cele mai recent anulate primele)
 			'people'    => 0,
 			'revenue'   => 0,
 			'days'      => array(), // theme|date => [theme, date, slots, booked]
@@ -218,6 +244,9 @@ class STM_Dashboard {
 			$b = STM_Bookings::get( $id );
 			if ( 'cancelled' === $b['status'] ) {
 				++$out['cancelled'];
+				$b['cancelled_at'] = (int) get_post_meta( $id, '_stm_cancelled_at', true );
+				$b['cancelled_by'] = (string) get_post_meta( $id, '_stm_cancelled_by', true );
+				$out['gone'][ sprintf( '%011d|%s|%d', $b['cancelled_at'], $b['start'], $id ) ] = $b;
 				continue;
 			}
 			++$out[ $b['status'] ];
@@ -232,6 +261,7 @@ class STM_Dashboard {
 		}
 		ksort( $out['upcoming'] );
 		krsort( $out['past'] );
+		krsort( $out['gone'] );
 		ksort( $out['days'] );
 		return $out;
 	}
@@ -249,6 +279,40 @@ class STM_Dashboard {
 			<td class="stm-made"><?php if ( $made ) : ?><?php echo esc_html( wp_date( 'j M Y', $made ) ); ?><br><span class="stm-muted"><?php echo esc_html( wp_date( 'H:i', $made ) ); ?></span><?php else : ?>—<?php endif; ?></td>
 			<td><?php echo STM_Bookings::status_cell( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
 		</tr>
+		<?php
+	}
+
+	/**
+	 * Panoul „Anulări”: rezervările anulate din perioada aleasă, cu cine a anulat și când.
+	 *
+	 * @param array $gone   Rezervările anulate (din stats()).
+	 * @param array $unseen ID-urile anulărilor făcute de clienți și nevăzute încă, ca chei.
+	 */
+	private static function cancelled_panel( $gone, $unseen ) {
+		if ( ! $gone ) {
+			return;
+		}
+		$all = admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_BOOKING . '&stm_status=cancelled&stm_when=all' );
+		?>
+		<div class="stm-panel stm-gone">
+			<h2><?php echo 1 === count( $gone ) ? '1 rezervare anulată' : count( $gone ) . ' rezervări anulate'; ?><?php echo $unseen ? ' <span class="stm-badge stm-badge--cancelled">' . ( 1 === count( $unseen ) ? '1 nouă' : count( $unseen ) . ' noi' ) . '</span>' : ''; ?></h2>
+			<p class="description">Orele lor sunt libere din nou pe site. Butonul WhatsApp deschide un mesaj gata scris către client.</p>
+			<table class="widefat stm-dash-table">
+				<thead><tr><th>Era programată</th><th>Client</th><th>Pachet</th><th>Anulată</th><th>Status</th></tr></thead>
+				<tbody>
+				<?php foreach ( array_slice( $gone, 0, 15 ) as $b ) : ?>
+					<tr class="stm-row-cancelled">
+						<td><strong><?php echo esc_html( wp_date( 'D j M', strtotime( substr( $b['start'], 0, 10 ) . ' 12:00' ) ) ); ?></strong> <?php echo esc_html( substr( $b['start'], 11, 5 ) ); ?><?php echo isset( $unseen[ $b['id'] ] ) ? ' <span class="stm-badge stm-badge--cancelled">Anulare nouă</span>' : ''; ?></td>
+						<td><a href="<?php echo esc_url( get_edit_post_link( $b['id'] ) ); ?>"><?php echo esc_html( $b['name'] ); ?></a><br><span class="stm-muted"><?php echo esc_html( $b['phone'] ); ?></span><?php echo STM_Helpers::booking_actions( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
+						<td><?php echo esc_html( $b['package'] ); ?><br><span class="stm-muted"><?php echo esc_html( STM_Helpers::money( STM_Helpers::amount( $b ) ) ); ?></span></td>
+						<td class="stm-made"><?php echo esc_html( 'client' === $b['cancelled_by'] ? 'de client' : ( 'admin' === $b['cancelled_by'] ? 'de tine' : '—' ) ); ?><?php if ( $b['cancelled_at'] ) : ?><br><span class="stm-muted"><?php echo esc_html( wp_date( 'j M Y, H:i', $b['cancelled_at'] ) ); ?></span><?php endif; ?></td>
+						<td><?php echo STM_Bookings::status_cell( $b ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped în funcție. ?></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+			<p><a href="<?php echo esc_url( $all ); ?>">Toate anulările →</a></p>
+		</div>
 		<?php
 	}
 
@@ -289,6 +353,16 @@ class STM_Dashboard {
 				$new[ $nid ] = $nb;
 			}
 			delete_post_meta( $nid, '_stm_new' );
+		}
+		// Anulările făcute de clienți: marcate aici o dată, apoi ies din numărul de pe meniu.
+		// Doar cele afișate acum (în evenimentul și perioada alese); restul rămân în numărul de pe meniu.
+		$unseen = array();
+		$fresh  = array_flip( self::new_ids( '_stm_cancel_new' ) );
+		foreach ( array_slice( $s['gone'], 0, 15 ) as $gb ) {
+			if ( isset( $fresh[ $gb['id'] ] ) ) {
+				$unseen[ $gb['id'] ] = true;
+				delete_post_meta( $gb['id'], '_stm_cancel_new' );
+			}
 		}
 		$trash_count = wp_count_posts( STM_Helpers::CPT_BOOKING );
 		$trash       = isset( $trash_count->trash ) ? (int) $trash_count->trash : 0;
@@ -347,6 +421,13 @@ class STM_Dashboard {
 				</div>
 			<?php endif; ?>
 
+			<?php
+			// Cu anulări nevăzute, panoul stă sus, înaintea cifrelor; altfel, sub ele.
+			if ( $unseen ) {
+				self::cancelled_panel( $s['gone'], $unseen );
+			}
+			?>
+
 			<div class="stm-kpis">
 				<div class="stm-kpi stm-kpi--ok"><b><?php echo (int) $s['confirmed']; ?></b><span>Rezervări confirmate</span><small><?php echo (int) $s['people']; ?> persoane</small></div>
 				<div class="stm-kpi stm-kpi--warn"><b><?php echo (int) $s['pending']; ?></b><span>În așteptare</span><small><?php echo $s['pending'] ? '<a href="' . esc_url( admin_url( 'edit.php?post_type=' . STM_Helpers::CPT_BOOKING . '&stm_status=pending&stm_when=all' ) ) . '">de confirmat</a>' : 'nimic de confirmat'; ?></small></div>
@@ -355,6 +436,12 @@ class STM_Dashboard {
 				<div class="stm-kpi"><b><?php echo esc_html( STM_Helpers::money( $s['revenue'] ) ); ?></b><span>Încasări estimate</span><small>confirmate + în așteptare, cu reduceri</small></div>
 				<div class="stm-kpi"><b><?php echo count( $s['clients'] ); ?></b><span>Clienți</span><small><?php echo (int) $s['cancelled']; ?> anulări</small></div>
 			</div>
+
+			<?php
+			if ( ! $unseen ) {
+				self::cancelled_panel( $s['gone'], $unseen );
+			}
+			?>
 
 			<div class="stm-dash-two">
 				<div class="stm-panel">
