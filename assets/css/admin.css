@@ -138,3 +138,10 @@
 	.stm-day-table { max-width: none; font-size: 12pt; }
 }
 .stm-dash-table td.stm-made { white-space: nowrap; }
+
+/* ---- Rezervări anulate ---- */
+.stm-gone { margin-bottom: 18px; border-left: 4px solid #b32d2e; }
+.stm-gone h2 .stm-badge { vertical-align: middle; margin-left: 6px; }
+.stm-dash-table tr.stm-row-cancelled td, .wp-list-table tr.stm-row-cancelled td, .wp-list-table tr.stm-row-cancelled th { background: #fcf0f0; }
+.wp-list-table tr.stm-row-cancelled th.check-column { box-shadow: inset 4px 0 0 #b32d2e; }
+.wp-list-table tr.stm-row-cancelled .row-title { color: #8a1f1f; text-decoration: line-through; }
