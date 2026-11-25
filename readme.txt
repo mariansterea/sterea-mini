@@ -1,7 +1,7 @@
 === Sterea Mini-Ședințe ===
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.9.4
+Stable tag: 1.9.5
 License: GPLv2 or later
 
 Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
@@ -56,6 +56,11 @@ Rezervări pentru mini-ședințe foto, pe evenimente cu date fixe.
 Are nevoie de extensia PHP GD cu suport TrueType (prezentă pe majoritatea hostingurilor).
 
 == Istoric versiuni ==
+
+= 1.9.5 (2026-11-25) =
+* Dashboard: panou „Rezervări anulate”, cu rânduri roșii, cine a anulat (clientul sau tu) și când. Anulările făcute de clienți și nevăzute încă apar sus și se numără în bulina de pe meniu.
+* Buton WhatsApp și la rezervările anulate, cu un mesaj gata scris despre anulare.
+* Lista „Rezervări”: rândurile anulate sunt colorate și arată cine a anulat și când.
 
 = 1.9.4 (2026-11-24) =
 * Reparat „Cannot load stm-dashboard”: după „Purge All” (LiteSpeed Cache) din Dashboard, pagina nu se mai încărca. Dashboard, Programul zilei și Setări se deschid acum mereu la adresa lor corectă.
